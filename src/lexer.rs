@@ -9,6 +9,13 @@ struct Lexer {
     len: usize,
 }
 
+fn is_digit(ch: char) -> bool {
+    match ch {
+        x if '0' <= x && x <= '9' => true,
+        _ => false,
+    }
+}
+
 fn is_letter(ch: char) -> bool {
     match ch {
         x if 'a' <= x && x <= 'z' => true,
@@ -24,7 +31,7 @@ fn is_whitespace(ch: char) -> bool {
         '\t' => true,
         '\n' => true,
         '\r' => true,
-        _ => false
+        _ => false,
     }
 }
 
@@ -63,6 +70,15 @@ impl Lexer {
         String::from_utf8(self.input[pos..self.pos].to_vec()).unwrap()
     }
 
+    fn read_digit(&mut self) -> String {
+        let pos = self.pos;
+
+        while is_digit(self.ch as char) {
+            self.read_char();
+        }
+        String::from_utf8(self.input[pos..self.pos].to_vec()).unwrap()
+    }
+
     fn skip_whitespace(&mut self) {
         while is_whitespace(self.ch as char) {
             self.read_char();
@@ -81,13 +97,18 @@ impl Lexer {
             ',' => token::make(token::COMMA, ","),
             ';' => token::make(token::SEMICOLON, ";"),
             '\0' => token::make(token::EOF, ""),
+
             x if is_letter(x) => {
-                token::Token {
-                    typ: token::IDENT,
-                    literal: self.read_identifier(),
-                }
-            },
-            _ => token::make(token::ILLEGAL, "ILLEGAL")
+                let literal = self.read_identifier();
+                let tkn = token::lookup_ident(&literal);
+                return token::Token{typ: tkn, literal: literal}
+            }
+
+            x if is_digit(x) => {
+                let digit = self.read_digit();
+                return token::Token{typ: token::INT, literal: digit}
+            }
+            _ => token::make(token::ILLEGAL, "ILLEGAL"),
         };
         self.read_char();
         token
@@ -96,8 +117,9 @@ impl Lexer {
 
 #[cfg(test)]
 mod tests {
-    use lexer::*;
+    use super::*;
 
+    #[derive(Debug)]
     struct test(::token::TokenType, String);
     fn tok(t: token::TokenType, s: &'static str) -> test {
         test(t, String::from(s))
@@ -140,7 +162,7 @@ let add = fn(x, y) {
   x + y;
 };
 
-let result = add(five, 10);
+let result = add(five, ten);
 ",
         );
 
@@ -148,9 +170,6 @@ let result = add(five, 10);
         let mut l = Lexer::new(input);
 
         let tests = vec![
-            tok(token::LET, "let"),
-            tok(token::IDENT, "five"),
-            tok(token::ASSIGN, "="),
             tok(token::LET, "let"),
             tok(token::IDENT, "five"),
             tok(token::ASSIGN, "="),
@@ -192,8 +211,9 @@ let result = add(five, 10);
 
         for t in tests {
             let tok = l.next_token();
+            println!("testing: {:?}", tok);
             assert_eq!(tok.typ, t.0);
-            assert!(tok.literal == t.1);
+            assert_eq!(tok.literal, t.1);
         }
     }
 
