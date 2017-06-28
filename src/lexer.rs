@@ -50,15 +50,27 @@ impl Lexer {
         l
     }
 
+
+    fn peek(&self) -> u8 {
+        if self.read_pos >= self.len {
+            0
+        } else {
+            self.input[self.read_pos]
+        }
+    }
+
+    fn next_eq(&self, next: char) -> bool {
+        self.peek() == next as u8
+    }
+
     fn read_char(&mut self) {
         if self.read_pos >= self.len {
             self.ch = 0;
         } else {
             self.ch = self.input[self.read_pos];
+            self.pos = self.read_pos;
+            self.read_pos = self.read_pos + 1;
         }
-
-        self.pos = self.read_pos;
-        self.read_pos = self.read_pos + 1;
     }
 
     fn read_identifier(&mut self) -> String {
@@ -88,8 +100,27 @@ impl Lexer {
     fn next_token(&mut self) -> token::Token {
         self.skip_whitespace();
         let token = match self.ch as char {
+
+            '=' if self.next_eq('=') => {
+                self.read_char();
+                token::make(token::EQ, "==")
+            },
+
             '=' => token::make(token::ASSIGN, "="),
+
             '+' => token::make(token::PLUS, "+"),
+            '-' => token::make(token::MINUS, "-"),
+            '/' => token::make(token::SLASH, "/"),
+            '*' => token::make(token::ASTERISK, "*"),
+
+            '!' if self.next_eq('=') => {
+                self.read_char();
+                token::make(token::NOT_EQ, "!=")
+            },
+            '!' => token::make(token::BANG, "!"),
+
+            '<' => token::make(token::LT, "<"),
+            '>' => token::make(token::GT, ">"),
             '(' => token::make(token::LPAREN, "("),
             ')' => token::make(token::RPAREN, ")"),
             '{' => token::make(token::LBRACE, "{"),
@@ -163,6 +194,17 @@ let add = fn(x, y) {
 };
 
 let result = add(five, ten);
+!-/*5;
+5 < 10 > 5;
+
+if (5 < 10) {
+  return true;
+} else {
+  return false;
+}
+
+10 == 10;
+10 != 9;
 ",
         );
 
@@ -206,6 +248,48 @@ let result = add(five, ten);
             tok(token::IDENT, "ten"),
             tok(token::RPAREN, ")"),
             tok(token::SEMICOLON, ";"),
+
+            tok(token::BANG, "!"),
+            tok(token::MINUS, "-"),
+            tok(token::SLASH, "/"),
+            tok(token::ASTERISK, "*"),
+            tok(token::INT, "5"),
+            tok(token::SEMICOLON, ";"),
+
+            tok(token::INT, "5"),
+            tok(token::LT, "<"),
+            tok(token::INT, "10"),
+            tok(token::GT, ">"),
+            tok(token::INT, "5"),
+            tok(token::SEMICOLON, ";"),
+
+            tok(token::IF, "if"),
+            tok(token::LPAREN, "("),
+            tok(token::INT, "5"),
+            tok(token::LT, "<"),
+            tok(token::INT, "10"),
+            tok(token::RPAREN, ")"),
+            tok(token::LBRACE, "{"),
+            tok(token::RETURN, "return"),
+            tok(token::TRUE, "true"),
+            tok(token::SEMICOLON, ";"),
+            tok(token::RBRACE, "}"),
+            tok(token::ELSE, "else"),
+            tok(token::LBRACE, "{"),
+            tok(token::RETURN, "return"),
+            tok(token::FALSE, "false"),
+            tok(token::SEMICOLON, ";"),
+            tok(token::RBRACE, "}"),
+
+            tok(token::INT, "10"),
+            tok(token::EQ, "=="),
+            tok(token::INT, "10"),
+            tok(token::SEMICOLON, ";"),
+
+            tok(token::INT, "10"),
+            tok(token::NOT_EQ, "!="),
+            tok(token::INT, "9"),
+            tok(token::SEMICOLON, ";"),
             tok(token::EOF, ""),
         ];
 
@@ -226,5 +310,4 @@ let result = add(five, ten);
         assert!(!is_letter(' '));
         assert!(!is_letter('{'));
     }
-
 }
