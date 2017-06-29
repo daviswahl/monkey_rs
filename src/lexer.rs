@@ -1,7 +1,7 @@
 
 use token;
 
-struct Lexer {
+pub struct Lexer {
     input: Vec<u8>,
     pos: usize,
     read_pos: usize,
@@ -35,21 +35,21 @@ fn is_whitespace(ch: char) -> bool {
     }
 }
 
-impl Lexer {
-    fn new(s: String) -> Lexer {
-        let input = s.into_bytes();
-        let len: usize = input.len();
-        let mut l = Lexer {
-            input: input,
-            pos: 0,
-            read_pos: 0,
-            ch: 0,
-            len: len,
-        };
-        l.read_char();
-        l
-    }
+pub fn new(s: String) -> Lexer {
+    let input = s.into_bytes();
+    let len: usize = input.len();
+    let mut l = Lexer {
+        input: input,
+        pos: 0,
+        read_pos: 0,
+        ch: 0,
+        len: len,
+    };
+    l.read_char();
+    l
+}
 
+impl Lexer {
 
     fn peek(&self) -> u8 {
         if self.read_pos >= self.len {
@@ -97,7 +97,7 @@ impl Lexer {
         }
     }
 
-    fn next_token(&mut self) -> token::Token {
+    pub fn next_token(&mut self) -> token::Token {
         self.skip_whitespace();
         let token = match self.ch as char {
 
@@ -160,7 +160,7 @@ mod tests {
     fn lexing_1() {
         let input = String::from("=+(){},;");
 
-        let mut l = Lexer::new(input);
+        let mut l = new(input);
 
 
         let tests = vec![
@@ -209,7 +209,7 @@ if (5 < 10) {
         );
 
 
-        let mut l = Lexer::new(input);
+        let mut l = new(input);
 
         let tests = vec![
             tok(token::LET, "let"),

@@ -48,7 +48,7 @@ pub fn make(typ: TokenType, lit: &'static str) -> Token {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Token {
     pub typ: TokenType,
     pub literal: String,
