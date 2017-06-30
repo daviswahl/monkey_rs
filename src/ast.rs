@@ -68,7 +68,7 @@ impl Node for LetStatement {
 
 pub struct ReturnStatement {
     pub token: token::Token,
-    pub expression: Box<Expression>,
+    pub expression: Expression,
 }
 
 impl Node for ReturnStatement {

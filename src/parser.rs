@@ -37,8 +37,7 @@ impl Parser {
         let peek = self.lexer.next_token();
 
         let cur = mem::replace(&mut self.peek_token, peek);
-        let prev = mem::replace(&mut self.cur_token, cur);
-        prev
+        mem::replace(&mut self.cur_token, cur)
     }
 
     fn cur_token_is(&self, t: token::TokenType) -> bool {
@@ -56,6 +55,18 @@ impl Parser {
             self.errors.push(ParseError{expected: t, actual: self.peek_token.typ, pos: self.lexer.pos});
             false
         }
+    }
+
+    fn parse_return_statement(&mut self) -> Option<ast::Statement> {
+        let stmt = ast::Statement::Return(ast::ReturnStatement{
+             token: self.next_token(),
+             expression: ast::Expression::Unit(ast::UnitExpression()),
+        });
+
+        while !self.cur_token_is(token::SEMICOLON) {
+            self.next_token();
+        }
+        Some(stmt)
     }
 
     fn parse_let_statement(&mut self) -> Option<ast::Statement> {
@@ -86,7 +97,7 @@ impl Parser {
     fn parse_statement(&mut self) -> Option<ast::Statement> {
         match self.cur_token.typ {
             token::LET => self.parse_let_statement(),
-            token::RETURN => None, // self.parse_return_statement(),
+            token::RETURN => self.parse_return_statement(),
             _ => None,
         }
     }
