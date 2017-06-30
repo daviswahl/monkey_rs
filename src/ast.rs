@@ -1,16 +1,16 @@
 use token;
-trait Node {
+pub trait Node {
     fn token_literal(&self) -> String;
 }
 
-trait Statement : Node {}
-trait Expression : Node {}
+pub trait Statement : Node {}
+pub trait Expression : Node {}
 
-pub struct Program<'a> {
-    pub statements: Vec<&'a Statement>,
+pub struct Program {
+    pub statements: Vec<Box<Statement>>,
 }
 
-impl <'a>Node for Program<'a> {
+impl Node for Program {
     fn token_literal(&self) -> String {
         if self.statements.len() > 1 {
             return self.statements[0].token_literal()
@@ -19,9 +19,9 @@ impl <'a>Node for Program<'a> {
     }
 }
 
-struct Identifier {
-    token: token::Token,
-    value: String,
+pub struct Identifier {
+    pub token: token::Token,
+    pub value: String,
 }
 impl Expression for Identifier {}
 
@@ -31,10 +31,10 @@ impl Node for Identifier {
     }
 }
 
-struct LetStatement {
-    token: token::Token,
-    name: Identifier,
-    value: Expression,
+pub struct LetStatement {
+    pub token: token::Token,
+    pub name: Identifier,
+    pub value: Box<Expression>,
 }
 
 impl Node for LetStatement {
@@ -44,6 +44,15 @@ impl Node for LetStatement {
 }
 
 impl Statement for LetStatement {}
+
+
+pub struct Unit {}
+impl Node for Unit {
+    fn token_literal(&self) -> String {
+        String::from("()")
+    }
+}
+impl Expression for Unit {}
 
 #[cfg(tests)]
 mod tests {

@@ -1,4 +1,3 @@
-
 use token;
 
 pub struct Lexer {
