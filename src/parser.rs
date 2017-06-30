@@ -9,52 +9,94 @@ struct Parser {
     lexer: lexer::Lexer,
     cur_token: token::Token,
     peek_token: token::Token,
+    errors: Vec<ParseError>,
 }
 
-fn new(mut l: lexer::Lexer) -> Parser {
-    let cur = l.next_token();
-    let peek = l.next_token();
-    Parser {
-        lexer: l,
-        cur_token: cur,
-        peek_token: peek,
-    }
+#[derive(PartialEq, Debug)]
+struct ParseError {
+    expected: token::TokenType,
+    actual: token::TokenType,
+    pos: usize,
 }
+
 
 impl Parser {
-    fn next_token(&mut self) {
-        let cur = self.peek_token.clone();
-        let peek = self.lexer.next_token();
-
-        self.peek_token = peek;
-        self.cur_token = cur;
+    fn new(mut l: lexer::Lexer) -> Parser {
+        let cur = l.next_token();
+        let peek = l.next_token();
+        Parser {
+            lexer: l,
+            cur_token: cur,
+            peek_token: peek,
+            errors: vec![],
+        }
     }
 
+    fn next_token(&mut self) -> token::Token {
+        use std::mem;
+        let peek = self.lexer.next_token();
 
-    fn parse_let_statement(&mut self) -> Option<Box<ast::Statement>> {
-        Some(Box::new(ast::LetStatement {
-            token: token::make(token::LET, "let"),
-            name: ast::Identifier {
-                token: token::make(token::IDENT, "foo"),
-                value: String::from("foo"),
-            },
-            value: Box::new(ast::Unit {}),
+        let cur = mem::replace(&mut self.peek_token, peek);
+        let prev = mem::replace(&mut self.cur_token, cur);
+        prev
+    }
+
+    fn cur_token_is(&self, t: token::TokenType) -> bool {
+        self.cur_token.typ == t
+    }
+
+    fn peek_token_is(&self, t: token::TokenType) -> bool {
+        self.peek_token.typ == t
+    }
+
+    fn expect_peek(&mut self, t: token::TokenType) -> bool {
+        if self.peek_token_is(t) {
+            true
+        } else {
+            self.errors.push(ParseError{expected: t, actual: self.peek_token.typ, pos: self.lexer.pos});
+            false
+        }
+    }
+
+    fn parse_let_statement(&mut self) -> Option<ast::Statement> {
+
+        if !self.expect_peek(token::IDENT) {
+            return None;
+        }
+        let let_tok = self.next_token();
+
+        if !self.expect_peek(token::ASSIGN) {
+            return None;
+        }
+
+        let ident_tok = self.next_token();
+        let name = ast::Identifier::new(ident_tok);
+
+        while !self.cur_token_is(token::SEMICOLON) {
+            self.next_token();
+        }
+
+        Some(ast::Statement::Let(ast::LetStatement {
+            token: let_tok,
+            name: name,
+            value: ast::Expression::Unit(ast::UnitExpression()),
         }))
     }
 
-    fn parse_statement(&mut self) -> Option<Box<ast::Statement>> {
+    fn parse_statement(&mut self) -> Option<ast::Statement> {
         match self.cur_token.typ {
             token::LET => self.parse_let_statement(),
+            token::RETURN => None, // self.parse_return_statement(),
             _ => None,
         }
     }
 
     fn parse<'a>(&'a mut self) -> ast::Program {
-        let mut statements: Vec<Box<ast::Statement>> = vec![];
+        let mut statements: Vec<ast::Statement> = vec![];
 
 
         while self.cur_token.typ != token::EOF {
-            let stmt: Option<Box<ast::Statement>> = self.parse_statement();
+            let stmt: Option<ast::Statement> = self.parse_statement();
             match stmt {
                 Some(s) => statements.push(s),
                 None => (),
@@ -69,44 +111,48 @@ impl Parser {
 #[cfg(test)]
 mod tests {
     use super::*;
-    fn script() -> String {
-        String::from(
-            "
-let x = 5;
-let y = 10;
-let foobar = 838383;
-",
-        )
+
+    fn make_parser(s: &'static str) -> Parser {
+        Parser::new(make_lexer(s))
     }
 
-    fn makeLexer() -> lexer::Lexer {
-        lexer::new(script())
+    fn make_lexer(s: &'static str) -> lexer::Lexer {
+        lexer::Lexer::new(String::from(s))
     }
 
     struct test_case(&'static str);
 
-    fn test_let_statement(s: &Box<ast::Statement>, t: &test_case) {
+    fn test_let_statement(s: &ast::Statement, t: &test_case) {
         assert_eq!(s.token_literal(), "let");
+        match *s {
+            Statement::Let(ref stmt) => {
+                assert_eq!(stmt.name.value, t.0);
+            }
+            _ => assert!(false),
+        }
+    }
+
+    fn test_error(p: &Parser, err: ParseError) {
+        let b = p.errors.iter().any(|e| *e == err);
+        if !b {
+            let err = format!("Expected {:?} to be in {:?}", err, p.errors);
+            assert!(b, err);
+        }
+
     }
 
     #[test]
-    fn test_make_parser() {
-        let mut p = new(makeLexer());
-        assert_eq!(
-            p.cur_token,
-            token::Token {
-                typ: token::LET,
-                literal: String::from("let"),
-            }
+    fn test_parse_let() {
+        let mut p = make_parser(
+            "
+let x = 5;
+let y = 10;
+let foobar = 838383;
+let = 83833;
+let y 83353;
+let 8331254;
+"
         );
-        assert_eq!(
-            p.peek_token,
-            token::Token {
-                typ: token::IDENT,
-                literal: String::from("x"),
-            }
-        );
-
         let program = p.parse();
         assert_eq!(program.statements.len(), 3);
 
@@ -117,5 +163,30 @@ let foobar = 838383;
             let stmt = &program.statements[idx];
             test_let_statement(stmt, t);
         }
+        test_error(&p, ParseError{expected: token::IDENT, actual: token::ASSIGN, pos: 50});
+        test_error(&p, ParseError{expected: token::ASSIGN, actual: token::INT, pos: 69});
+        test_error(&p, ParseError{expected: token::IDENT, actual: token::INT, pos: 82});
     }
+
+    #[test]
+    fn test_parse_return() {
+        let mut p = make_parser(
+            "
+return 5;
+return 10;
+return 993322;
+"
+        );
+        let program = p.parse();
+        assert_eq!(program.statements.len(), 3);
+
+
+        for (idx, stmt) in program.statements.iter().enumerate() {
+            match *stmt {
+                ast::Statement::Return(ref stmt) => (),
+                _ => assert!(false, "Expected Return statement"),
+            }
+        }
+    }
+
 }
