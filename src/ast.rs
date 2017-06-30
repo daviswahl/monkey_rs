@@ -1,11 +1,14 @@
 use token;
-pub trait Node {
+use std::fmt;
+
+pub trait Node : fmt::Display {
     fn token_literal(&self) -> String;
 }
 
 pub enum Statement {
     Let(LetStatement),
     Return(ReturnStatement),
+    Expression(ExpressionStatement),
 }
 
 impl Node for Statement {
@@ -13,12 +16,45 @@ impl Node for Statement {
         match *self {
             Statement::Let(ref stmt) => stmt.token_literal(),
             Statement::Return(ref stmt) => stmt.token_literal(),
+            Statement::Expression(ref stmt) => stmt.token_literal(),
+        }
+    }
+}
+
+impl fmt::Display for Statement {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            Statement::Let(ref stmt) => stmt.fmt(f),
+            Statement::Return(ref stmt) => stmt.fmt(f),
+            Statement::Expression(ref stmt) => stmt.fmt(f),
         }
     }
 }
 
 pub enum Expression {
     Unit(UnitExpression),
+    Identifier(IdentifierExpression),
+    Integer(IntegerLiteral),
+}
+
+impl Node for Expression {
+    fn token_literal(&self) -> String {
+        match *self {
+            Expression::Unit(ref stmt) => stmt.token_literal(),
+            Expression::Identifier(ref stmt) => stmt.token_literal(),
+            Expression::Integer(ref stmt) => stmt.token_literal(),
+        }
+    }
+}
+
+impl fmt::Display for Expression {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            Expression::Unit(ref stmt) => stmt.fmt(f),
+            Expression::Identifier(ref stmt) => stmt.fmt(f),
+            Expression::Integer(ref stmt) => stmt.fmt(f),
+        }
+    }
 }
 
 pub struct Program {
@@ -34,28 +70,43 @@ impl Node for Program {
     }
 }
 
-pub struct Identifier {
+impl fmt::Display for Program {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        for stmt in &self.statements {
+            stmt.fmt(f);
+        }
+        Ok(())
+    }
+}
+
+pub struct IdentifierExpression {
     pub token: token::Token,
     pub value: String,
 }
 
 
-impl Node for Identifier {
+impl Node for IdentifierExpression {
     fn token_literal(&self) ->  String {
         self.token.literal.clone()
     }
 }
 
-impl Identifier {
-    pub fn new(t: token::Token) -> Identifier {
+impl fmt::Display for IdentifierExpression {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.value)
+    }
+}
+
+impl IdentifierExpression {
+    pub fn new(t: token::Token) -> IdentifierExpression {
         let lit = t.literal.clone();
-        Identifier{token: t, value: lit}
+        IdentifierExpression{token: t, value: lit}
     }
 }
 
 pub struct LetStatement {
     pub token: token::Token,
-    pub name: Identifier,
+    pub name: IdentifierExpression,
     pub value: Expression,
 }
 
@@ -65,10 +116,21 @@ impl Node for LetStatement {
     }
 }
 
+impl fmt::Display for LetStatement {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{} {} = {};", self.token_literal(), self.name, self.value)
+    }
+}
 
 pub struct ReturnStatement {
     pub token: token::Token,
-    pub expression: Expression,
+    pub value: Expression,
+}
+
+impl fmt::Display for ReturnStatement {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.value)
+    }
 }
 
 impl Node for ReturnStatement {
@@ -77,11 +139,51 @@ impl Node for ReturnStatement {
     }
 }
 
+pub struct ExpressionStatement {
+    pub token: token::Token,
+    pub value: Expression,
+}
+
+impl Node for ExpressionStatement {
+    fn token_literal(&self) -> String {
+        self.token.literal.clone()
+    }
+}
+
+impl fmt::Display for ExpressionStatement {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.value)
+    }
+}
 
 pub struct UnitExpression ();
+
 impl Node for UnitExpression {
     fn token_literal(&self) -> String {
         String::from("()")
+    }
+}
+
+impl fmt::Display for UnitExpression {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.token_literal())
+    }
+}
+
+pub struct IntegerLiteral {
+    pub token: token::Token,
+    pub value: i64,
+}
+
+impl Node for IntegerLiteral {
+    fn token_literal(&self) -> String{
+        self.value.to_string()
+    }
+}
+
+impl fmt::Display for IntegerLiteral {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.token_literal())
     }
 }
 
