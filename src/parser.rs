@@ -11,9 +11,6 @@ struct Parser {
     cur_token: token::Token,
     peek_token: token::Token,
     errors: Vec<ParseError>,
-
-    prefix_parse_fns: HashMap<token::TokenType, Box<PrefixParseFn>>,
-    infix_parse_fns: HashMap<token::TokenType, Box<InfixParseFn>>,
 }
 
 #[derive(PartialEq, Debug)]
@@ -23,6 +20,7 @@ struct ParseError {
     pos: usize,
 }
 
+#[derive(PartialEq, PartialOrd)]
 enum Precedence {
     LOWEST = 0,
     EQUALS = 1,
@@ -33,24 +31,29 @@ enum Precedence {
     CALL = 6,
 }
 
-type PrefixParseFn = Fn(&Parser) -> ast::Expression;
-type InfixParseFn = Fn(&Parser, ast::Expression) -> ast::Expression;
+impl Precedence {
+    pub fn from_token(t: token::TokenType) -> Precedence {
+        match t {
+            token::EQ | token::NOT_EQ => Precedence::EQUALS,
+            token::LT | token::GT => Precedence::LESSGREATER,
+            token::PLUS | token::MINUS => Precedence::SUM,
+            token::SLASH | token::ASTERISK => Precedence::PRODUCT,
+            token::LPAREN => Precedence::CALL,
+            _ => Precedence::LOWEST,
+        }
+    }
+}
 
 impl Parser {
     fn new(mut l: lexer::Lexer) -> Parser {
         let cur = l.next_token();
         let peek = l.next_token();
-        let mut p = Parser {
+        Parser {
             lexer: l,
             cur_token: cur,
             peek_token: peek,
             errors: vec![],
-            prefix_parse_fns: HashMap::new(),
-            infix_parse_fns: HashMap::new(),
-        };
-        p.register_prefix(token::IDENT, Box::new(|pa| Parser::parse_identifier(pa)));
-        p.register_prefix(token::INT, Box::new(|pa| Parser::parse_int(pa)));
-        p
+        }
     }
 
     fn next_token(&mut self) -> token::Token {
@@ -82,30 +85,62 @@ impl Parser {
         }
     }
 
-    fn register_prefix(&mut self, t: token::TokenType, f: Box<PrefixParseFn>) {
-        self.prefix_parse_fns.insert(t, f);
+    fn peek_precedence(&self) -> Precedence {
+        Precedence::from_token(self.peek_token.typ)
+    }
+
+    fn cur_precedence(&self) -> Precedence {
+        Precedence::from_token(self.cur_token.typ)
     }
 
     fn parse_expression(&mut self, p: Precedence) -> Option<ast::Expression> {
-        self.prefix_parse_fns.get(self.cur_token.typ).map(
-            |f| f(&self),
-        )
+        let mut left = match self.cur_token.typ {
+            token::IDENT => self.parse_identifier(),
+            token::INT => self.parse_int(),
+            token::BANG => self.parse_prefix_expression(),
+            token::MINUS => self.parse_prefix_expression(),
+            _ => None,
+        };
+
+        while !self.peek_token_is(token::SEMICOLON) && p < self.peek_precedence() {
+            let new = left.and_then(|exp| match self.peek_token.typ {
+                token::PLUS | token::MINUS => {
+                    self.next_token();
+                    self.parse_infix_expression(exp)
+                },
+                token::SLASH | token::ASTERISK => {
+                    self.next_token();
+                    self.parse_infix_expression(exp)
+                },
+                token::EQ | token::NOT_EQ => {
+                    self.next_token();
+                    self.parse_infix_expression(exp)
+                },
+                token::LT | token::GT => {
+                    self.next_token();
+                    self.parse_infix_expression(exp)
+                },
+                _ => None,
+            });
+            left = new;
+        }
+        left
     }
 
-    fn parse_int(p: &Parser) -> ast::Expression {
-        let tok = p.cur_token.clone();
-        ast::Expression::Integer(ast::IntegerLiteral {
+    fn parse_int(&self) -> Option<ast::Expression> {
+        let tok = self.cur_token.clone();
+        Some(ast::Expression::Integer(ast::IntegerLiteral {
             value: tok.literal.parse().unwrap(),
             token: tok,
-        })
+        }))
     }
 
-    fn parse_identifier(p: &Parser) -> ast::Expression {
-        let tok = p.cur_token.clone();
-        ast::Expression::Identifier(ast::IdentifierExpression {
+    fn parse_identifier(&self) -> Option<ast::Expression> {
+        let tok = self.cur_token.clone();
+        Some(ast::Expression::Identifier(ast::IdentifierExpression {
             value: tok.literal.clone(),
             token: tok,
-        })
+        }))
     }
 
     fn parse_return_statement(&mut self) -> Option<ast::Statement> {
@@ -118,6 +153,32 @@ impl Parser {
             self.next_token();
         }
         Some(stmt)
+    }
+
+    fn parse_prefix_expression(&mut self) -> Option<ast::Expression> {
+        let tok = self.next_token();
+
+        self.parse_expression(Precedence::PREFIX).map(|right| {
+            ast::Expression::Prefix(ast::PrefixExpression {
+                operator: tok.literal.clone(),
+                token: tok,
+                right: Box::new(right),
+            })
+        })
+    }
+
+    fn parse_infix_expression(&mut self, left: ast::Expression) -> Option<ast::Expression> {
+        let precedence = self.cur_precedence();
+        let tok = self.next_token();
+
+        self.parse_expression(precedence).map(|right| {
+            ast::Expression::Infix(ast::InfixExpression {
+                operator: tok.literal.clone(),
+                token: tok,
+                left: Box::new(left),
+                right: Box::new(right),
+            })
+        })
     }
 
     fn parse_let_statement(&mut self) -> Option<ast::Statement> {
@@ -314,6 +375,36 @@ foobar;
         }
     }
 
+    fn test_statement_expression(stmt: &ast::Statement, f: &Fn(&ast::Expression)) {
+        match stmt {
+            &ast::Statement::Expression(ref exp) => f(&exp.value),
+            _ => assert!(false, "Expected expression statement"),
+        }
+    }
+
+    fn test_integer_literal(exp: &ast::Expression, value: i64) {
+        match exp {
+            &ast::Expression::Integer(ref int_lit) => {
+                assert_eq!(int_lit.value, value);
+            }
+            _ => assert!(false, "Expected integer literal"),
+        }
+    }
+
+    fn test_infix_expression(exp: &ast::Expression, f: &Fn(&ast::InfixExpression)) {
+        println!("{:?}", exp);
+        match exp {
+            &ast::Expression::Infix(ref infix) => f(&*infix),
+            _ => assert!(false, "Expected infix expression"),
+        }
+    }
+
+    fn test_prefix_expression(exp: &ast::Expression, f: &Fn(&ast::PrefixExpression)) {
+        match exp {
+            &ast::Expression::Prefix(ref prefix) => f(&*prefix),
+            _ => assert!(false, "Expected prefix expression"),
+        }
+    }
     #[test]
     fn test_integer_expression() {
         let mut p = make_parser(
@@ -323,21 +414,57 @@ foobar;
         );
         let program = p.parse();
         assert_eq!(program.statements.len(), 1);
-
         let stmt = &program.statements[0];
 
-        match *stmt {
-            ast::Statement::Expression(ref exp) => {
-                match &exp.value {
-                    &ast::Expression::Integer(ref int_lit) => {
-                        assert_eq!(int_lit.value, 5);
-                        assert_eq!(int_lit.token_literal(), "5");
-                    }
-                    _ => assert!(false, "Expected integer literal"),
-                }
-            }
-            _ => assert!(false, "Expected expression statement"),
+        test_statement_expression(stmt, &|exp| test_integer_literal(&exp, 5));
+    }
+
+    #[test]
+    fn test_prefix_expressions() {
+        let tests = vec![("!5;", "!", 5), ("-15;", "-", 15)];
+
+        for t in tests {
+            let mut p = make_parser(t.0);
+            let program = p.parse();
+            assert_eq!(1, program.statements.len());
+
+            test_statement_expression(&program.statements[0], &|exp| {
+                test_prefix_expression(exp, &|prefix| {
+                    assert_eq!(prefix.operator, t.1);
+                    test_integer_literal(&prefix.right, t.2)
+                })
+            });
         }
+
+    }
+
+    #[test]
+    fn test_infix_expressions() {
+        let tests = vec![
+            ("5 + 5;", 5, "+", 5),
+            ("5 - 5;", 5, "-", 5),
+            ("5 * 5;", 5, "*", 5),
+            ("5 / 5;", 5, "/", 5),
+            ("5 > 5;", 5, ">", 5),
+            ("5 < 5;", 5, "<", 5),
+            ("5 == 5;", 5, "==", 5),
+            ("5 != 5;", 5, "!=", 5),
+        ];
+
+        for t in tests {
+            let mut p = make_parser(t.0);
+            let program = p.parse();
+            assert_eq!(1, program.statements.len());
+
+            test_statement_expression(&program.statements[0], &|exp| {
+                test_infix_expression(exp, &|infix| {
+                    test_integer_literal(&infix.left, t.1);
+                    assert_eq!(infix.operator, String::from(t.2));
+                    test_integer_literal(&infix.right, t.3);
+                })
+            });
+        }
+
     }
 
 }
