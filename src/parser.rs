@@ -1,12 +1,9 @@
 use lexer;
 use token;
 use ast;
-use ast::Node;
-use ast::Expression;
-use ast::Statement;
 use std::collections::HashMap;
 
-struct Parser {
+pub struct Parser {
     lexer: lexer::Lexer,
     cur_token: token::Token,
     peek_token: token::Token,
@@ -45,7 +42,7 @@ impl Precedence {
 }
 
 impl Parser {
-    fn new(mut l: lexer::Lexer) -> Parser {
+    pub fn new(mut l: lexer::Lexer) -> Parser {
         let cur = l.next_token();
         let peek = l.next_token();
         Parser {
@@ -230,7 +227,7 @@ impl Parser {
         }
     }
 
-    fn parse<'b>(&'b mut self) -> ast::Program {
+    pub fn parse(&mut self) -> ast::Program {
         let mut statements: Vec<ast::Statement> = vec![];
 
 
@@ -262,9 +259,10 @@ mod tests {
     struct test_case(&'static str);
 
     fn test_let_statement(s: &ast::Statement, t: &test_case) {
+        use ast::Node;
         assert_eq!(s.token_literal(), "let");
         match *s {
-            Statement::Let(ref stmt) => {
+            ast::Statement::Let(ref stmt) => {
                 assert_eq!(stmt.name.value, t.0);
             }
             _ => assert!(false),
@@ -341,9 +339,9 @@ return 993322;
         assert_eq!(program.statements.len(), 3);
 
 
-        for (idx, stmt) in program.statements.iter().enumerate() {
+        for stmt in program.statements.iter() {
             match *stmt {
-                ast::Statement::Return(ref stmt) => (),
+                ast::Statement::Return(_) => (),
                 _ => assert!(false, "Expected Return statement"),
             }
         }
@@ -361,6 +359,7 @@ foobar;
 
         let stmt = &program.statements[0];
 
+        use ast::Node;
         match *stmt {
             ast::Statement::Expression(ref exp) => {
                 match &exp.value {
@@ -407,6 +406,7 @@ foobar;
     }
     #[test]
     fn test_integer_expression() {
+        use ast::Node;
         let mut p = make_parser(
             "
 5;
