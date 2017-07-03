@@ -31,7 +31,8 @@ impl fmt::Display for Statement {
     }
 }
 
-#[derive(Debug)]
+// Expression
+#[derive(Debug, Clone)]
 pub enum Expression {
     Unit(UnitExpression),
     Identifier(IdentifierExpression),
@@ -70,7 +71,7 @@ pub struct Program {
 
 impl Node for Program {
     fn token_literal(&self) -> String {
-        if self.statements.len() > 1 {
+        if self.statements.len() >= 1 {
             return self.statements[0].token_literal()
         }
         String::from("")
@@ -80,13 +81,13 @@ impl Node for Program {
 impl fmt::Display for Program {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for stmt in &self.statements {
-            stmt.fmt(f);
+            write!(f, "{}", stmt);
         }
         Ok(())
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct IdentifierExpression {
     pub token: token::Token,
     pub value: String,
@@ -112,6 +113,7 @@ impl IdentifierExpression {
     }
 }
 
+// Let Statement
 pub struct LetStatement {
     pub token: token::Token,
     pub name: IdentifierExpression,
@@ -130,6 +132,7 @@ impl fmt::Display for LetStatement {
     }
 }
 
+// Return Statement
 pub struct ReturnStatement {
     pub token: token::Token,
     pub value: Expression,
@@ -147,7 +150,7 @@ impl Node for ReturnStatement {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ExpressionStatement {
     pub token: token::Token,
     pub value: Expression,
@@ -165,7 +168,7 @@ impl fmt::Display for ExpressionStatement {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct UnitExpression ();
 
 impl Node for UnitExpression {
@@ -180,7 +183,7 @@ impl fmt::Display for UnitExpression {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct IntegerLiteral {
     pub token: token::Token,
     pub value: i64,
@@ -198,7 +201,7 @@ impl fmt::Display for IntegerLiteral {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PrefixExpression {
     pub token: token::Token,
     pub operator: String,
@@ -217,7 +220,7 @@ impl fmt::Display for PrefixExpression {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct InfixExpression {
     pub token: token::Token,
     pub left: Box<Expression>,

@@ -67,9 +67,9 @@ impl Lexer {
             self.ch = 0;
         } else {
             self.ch = self.input[self.read_pos];
-            self.pos = self.read_pos;
-            self.read_pos = self.read_pos + 1;
         }
+        self.pos = self.read_pos;
+        self.read_pos = self.read_pos + 1;
     }
 
     fn read_identifier(&mut self) -> String {

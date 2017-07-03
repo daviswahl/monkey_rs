@@ -17,7 +17,7 @@ struct ParseError {
     pos: usize,
 }
 
-#[derive(PartialEq, PartialOrd)]
+#[derive(PartialEq, PartialOrd, Debug)]
 enum Precedence {
     LOWEST = 0,
     EQUALS = 1,
@@ -100,7 +100,7 @@ impl Parser {
         };
 
         while !self.peek_token_is(token::SEMICOLON) && p < self.peek_precedence() {
-            let new = left.and_then(|exp| match self.peek_token.typ {
+            let new = left.clone().and_then(|exp| match self.peek_token.typ {
                 token::PLUS | token::MINUS => {
                     self.next_token();
                     self.parse_infix_expression(exp)
@@ -119,10 +119,15 @@ impl Parser {
                 },
                 _ => None,
             });
+
+            if new.is_none() {
+                return left;
+            }
             left = new;
         }
         left
     }
+
 
     fn parse_int(&self) -> Option<ast::Expression> {
         let tok = self.cur_token.clone();
@@ -168,7 +173,9 @@ impl Parser {
         let precedence = self.cur_precedence();
         let tok = self.next_token();
 
+        println!("parse prec: {:?}", precedence);
         self.parse_expression(precedence).map(|right| {
+            println!("Right: {:?}", right);
             ast::Expression::Infix(ast::InfixExpression {
                 operator: tok.literal.clone(),
                 token: tok,
@@ -204,15 +211,17 @@ impl Parser {
     }
 
     fn parse_expression_statement(&mut self) -> Option<ast::Statement> {
+        let tok = self.cur_token.clone();
         let exp = self.parse_expression(Precedence::LOWEST);
 
-        if !self.expect_peek(token::SEMICOLON) {
-            return None;
+
+        if self.peek_token_is(token::SEMICOLON) {
+            self.next_token();
         }
 
         exp.map(|ex| {
             ast::Statement::Expression(ast::ExpressionStatement {
-                token: self.next_token(),
+                token: tok,
                 value: ex,
             })
         })
@@ -466,5 +475,25 @@ foobar;
         }
 
     }
+    #[test]
+    fn test_operator_precedence_parsing() {
+        let tests = vec![
+            ("-a * b", "((-a) * b)"),
+            ("!-a", "(!(-a))"),
+            ("a + b -c", "((a + b) - c)"),
+            ("a * b * c", "((a * b) * c)"),
+            ("a * b / c", "((a * b) / c)"),
+            ("a + b / c", "(a + (b / c))"),
+            ("3 + 4; -5 * 5", "(3 + 4)((-5) * 5)"),
+            ("5 > 4 == 3 < 4", "((5 > 4) == (3 < 4))"),
+            ];
 
+        for t in tests {
+            let mut p = make_parser(t.0);
+            let program = p.parse();
+
+            println!("{}", program);
+            assert_eq!(t.1, format!("{}", program));
+        }
+    }
 }
