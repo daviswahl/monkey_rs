@@ -130,7 +130,7 @@ impl Parser {
                     self.next_token();
                     self.parse_infix_expression(exp)
                 }
-                x => None,
+                _ => None,
             });
 
             if new.is_none() {
@@ -353,14 +353,12 @@ mod tests {
         lexer::Lexer::new(String::from(s))
     }
 
-    struct test_case(&'static str);
-
-    fn test_let_statement(s: &ast::Statement, t: &test_case) {
+    fn test_let_statement(s: &ast::Statement, t: &'static str) {
         use ast::Node;
         assert_eq!(s.token_literal(), "let");
         match *s {
             ast::Statement::Let(ref stmt) => {
-                assert_eq!(stmt.name.value, t.0);
+                assert_eq!(stmt.name.value, t);
             }
             _ => assert!(false),
         }
@@ -397,7 +395,7 @@ let 8331254;
         assert_eq!(program.statements.len(), 6);
 
 
-        let tests = vec![test_case("x"), test_case("y"), test_case("foobar")];
+        let tests = vec![("x"), ("y"), ("foobar")];
 
         for (idx, t) in tests.iter().enumerate() {
             let stmt = &program.statements[idx];
@@ -548,7 +546,6 @@ foobar;
 
     #[test]
     fn test_integer_expression() {
-        use ast::Node;
         let mut p = make_parser(
             "
 5;

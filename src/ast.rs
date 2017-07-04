@@ -91,7 +91,7 @@ impl Node for Program {
 impl fmt::Display for Program {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for stmt in &self.statements {
-            write!(f, "{}", stmt);
+            write!(f, "{}", stmt)?;
         }
         Ok(())
     }
@@ -284,9 +284,9 @@ impl Node for IfExpression {
 }
 impl fmt::Display for IfExpression {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "if{} {}", self.condition, self.consequence);
+        write!(f, "if{} {}", self.condition, self.consequence)?;
         self.alternative.as_ref().map(|alt| {
-            write!(f, "else {}", &alt);
+            write!(f, "else {}", &alt)
         });
 
         Ok(())
@@ -306,7 +306,7 @@ impl Node for BlockStatement {
 }
 impl fmt::Display for BlockStatement {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        for stmt in &self.statements { write!(f, "{}", stmt); }
+        for stmt in &self.statements { write!(f, "{}", stmt)?; }
         Ok(())
     }
 }

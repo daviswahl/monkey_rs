@@ -150,10 +150,8 @@ impl Lexer {
 mod tests {
     use super::*;
 
-    #[derive(Debug)]
-    struct test(::token::TokenType, String);
-    fn tok(t: token::TokenType, s: &'static str) -> test {
-        test(t, String::from(s))
+    fn tok(t: token::TokenType, s: &'static str) -> (::token::TokenType, String)  {
+        (t, String::from(s))
     }
 
     #[test]
