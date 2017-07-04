@@ -3,8 +3,8 @@ use token;
 use ast;
 
 #[derive(Debug)]
-pub struct Parser {
-    lexer: lexer::Lexer,
+pub struct Parser<'a> {
+    lexer: lexer::Lexer<'a>,
     cur_token: token::Token,
     peek_token: token::Token,
     errors: Vec<ParseError>,
@@ -41,8 +41,8 @@ impl Precedence {
     }
 }
 
-impl Parser {
-    pub fn new(mut l: lexer::Lexer) -> Parser {
+impl <'a>Parser<'a> {
+    pub fn new(mut l: lexer::Lexer<'a>) -> Parser {
         let cur = l.next_token();
         let peek = l.next_token();
         Parser {
@@ -179,7 +179,7 @@ impl Parser {
                     token: tok,
                     condition: Box::new(cond_exp),
                     consequence: Box::new(block),
-                    alternative: alt.map(|a| Box::new(a)),
+                    alternative: alt.map(Box::new),
                 })
             })
         })
@@ -350,7 +350,7 @@ mod tests {
     }
 
     fn make_lexer(s: &'static str) -> lexer::Lexer {
-        lexer::Lexer::new(String::from(s))
+        lexer::Lexer::new(s)
     }
 
     fn test_let_statement(s: &ast::Statement, t: &'static str) {

@@ -65,8 +65,8 @@ const KEYWORDS: [(&'static str, TokenType); 7] = [
     ("else", ELSE),
 ];
 
-pub fn lookup_ident(s: &String) -> TokenType {
-    match KEYWORDS.iter().find(|x| x.0 == s.as_str()) {
+pub fn lookup_ident(s: &str) -> TokenType {
+    match KEYWORDS.iter().find(|x| x.0 == s) {
         Some(s) => s.1,
         None => IDENT
     }

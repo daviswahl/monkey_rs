@@ -1,8 +1,8 @@
 use token;
 
 #[derive(Debug)]
-pub struct Lexer {
-    input: Vec<u8>,
+pub struct Lexer<'a> {
+    input: &'a str,
     pub pos: usize,
     read_pos: usize,
     ch: u8,
@@ -36,12 +36,11 @@ fn is_whitespace(ch: char) -> bool {
 }
 
 
-impl Lexer {
-    pub fn new(s: String) -> Lexer {
-        let input = s.into_bytes();
-        let len: usize = input.len();
+impl <'a>Lexer<'a> {
+    pub fn new(s:  &'a str) -> Lexer {
+        let len: usize = s.len();
         let mut l = Lexer {
-            input: input,
+            input: s,
             pos: 0,
             read_pos: 0,
             ch: 0,
@@ -55,7 +54,7 @@ impl Lexer {
         if self.read_pos >= self.len {
             0
         } else {
-            self.input[self.read_pos]
+            self.input.as_bytes()[self.read_pos]
         }
     }
 
@@ -67,7 +66,7 @@ impl Lexer {
         if self.read_pos >= self.len {
             self.ch = 0;
         } else {
-            self.ch = self.input[self.read_pos];
+            self.ch = self.input.as_bytes()[self.read_pos];
         }
         self.pos = self.read_pos;
         self.read_pos = self.read_pos + 1;
@@ -79,7 +78,7 @@ impl Lexer {
         while is_letter(self.ch as char) {
             self.read_char();
         }
-        String::from_utf8(self.input[pos..self.pos].to_vec()).unwrap()
+        String::from_utf8(self.input.as_bytes()[pos..self.pos].to_vec()).unwrap()
     }
 
     fn read_digit(&mut self) -> String {
@@ -88,7 +87,7 @@ impl Lexer {
         while is_digit(self.ch as char) {
             self.read_char();
         }
-        String::from_utf8(self.input[pos..self.pos].to_vec()).unwrap()
+        String::from_utf8(self.input.as_bytes()[pos..self.pos].to_vec()).unwrap()
     }
 
     fn skip_whitespace(&mut self) {
@@ -158,7 +157,7 @@ mod tests {
     fn lexing_1() {
         let input = String::from("=+(){},;");
 
-        let mut l = Lexer::new(input);
+        let mut l = Lexer::new(input.as_str());
 
 
         let tests = vec![
@@ -207,7 +206,7 @@ if (5 < 10) {
         );
 
 
-        let mut l = Lexer::new(input);
+        let mut l = Lexer::new(input.as_str());
 
         let tests = vec![
             tok(token::LET, "let"),

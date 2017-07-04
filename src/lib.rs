@@ -7,7 +7,7 @@ mod lexer;
 mod ast;
 mod parser;
 
-pub fn parse(s: String) -> ast::Program {
+pub fn parse(s: &str) -> ast::Program {
     let l = lexer::Lexer::new(s);
     let mut p = parser::Parser::new(l);
     p.parse()
