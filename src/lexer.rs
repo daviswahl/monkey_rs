@@ -9,28 +9,25 @@ pub struct Lexer<'a> {
     len: usize,
 }
 
-fn is_digit(ch: char) -> bool {
+fn is_digit(ch: u8) -> bool {
     match ch {
-        x if '0' <= x && x <= '9' => true,
+        x if b'0' <= x && x <= b'9' => true,
         _ => false,
     }
 }
 
-fn is_letter(ch: char) -> bool {
+fn is_letter(ch: u8) -> bool {
     match ch {
-        x if 'a' <= x && x <= 'z' => true,
-        x if 'A' <= x && x <= 'Z' => true,
-        '_' => true,
+        x if b'a' <= x && x <= b'z' => true,
+        x if b'A' <= x && x <= b'Z' => true,
+        b'_' => true,
         _ => false,
     }
 }
 
-fn is_whitespace(ch: char) -> bool {
+fn is_whitespace(ch: u8) -> bool {
     match ch {
-        ' ' => true,
-        '\t' => true,
-        '\n' => true,
-        '\r' => true,
+        b' ' | b'\t' | b'\n' | b'\r' => true,
         _ => false,
     }
 }
@@ -52,14 +49,14 @@ impl <'a>Lexer<'a> {
 
     fn peek(&self) -> u8 {
         if self.read_pos >= self.len {
-            0
+           b'\0'
         } else {
             self.input.as_bytes()[self.read_pos]
         }
     }
 
-    fn next_eq(&self, next: char) -> bool {
-        self.peek() == next as u8
+    fn next_eq(&self, next: u8) -> bool {
+        self.peek() == next
     }
 
     fn read_char(&mut self) {
@@ -69,64 +66,64 @@ impl <'a>Lexer<'a> {
             self.ch = self.input.as_bytes()[self.read_pos];
         }
         self.pos = self.read_pos;
-        self.read_pos = self.read_pos + 1;
+        self.read_pos += 1;
     }
 
     fn read_identifier(&mut self) -> String {
         let pos = self.pos;
 
-        while is_letter(self.ch as char) {
+        while is_letter(self.ch) {
             self.read_char();
         }
-        String::from_utf8(self.input.as_bytes()[pos..self.pos].to_vec()).unwrap()
+        self.input[pos..self.pos].to_string()
     }
 
     fn read_digit(&mut self) -> String {
         let pos = self.pos;
 
-        while is_digit(self.ch as char) {
+        while is_digit(self.ch) {
             self.read_char();
         }
-        String::from_utf8(self.input.as_bytes()[pos..self.pos].to_vec()).unwrap()
+        self.input[pos..self.pos].to_string()
     }
 
     fn skip_whitespace(&mut self) {
-        while is_whitespace(self.ch as char) {
+        while is_whitespace(self.ch) {
             self.read_char();
         }
     }
 
     pub fn next_token(&mut self) -> token::Token {
         self.skip_whitespace();
-        let token = match self.ch as char {
+        let token = match self.ch {
 
-            '=' if self.next_eq('=') => {
+            b'=' if self.next_eq(b'=') => {
                 self.read_char();
                 token::make(token::EQ, "==")
             },
 
-            '=' => token::make(token::ASSIGN, "="),
+            b'=' => token::make(token::ASSIGN, "="),
 
-            '+' => token::make(token::PLUS, "+"),
-            '-' => token::make(token::MINUS, "-"),
-            '/' => token::make(token::SLASH, "/"),
-            '*' => token::make(token::ASTERISK, "*"),
+            b'+' => token::make(token::PLUS, "+"),
+            b'-' => token::make(token::MINUS, "-"),
+            b'/' => token::make(token::SLASH, "/"),
+            b'*' => token::make(token::ASTERISK, "*"),
 
-            '!' if self.next_eq('=') => {
+            b'!' if self.next_eq(b'=') => {
                 self.read_char();
                 token::make(token::NOT_EQ, "!=")
             },
-            '!' => token::make(token::BANG, "!"),
+            b'!' => token::make(token::BANG, "!"),
 
-            '<' => token::make(token::LT, "<"),
-            '>' => token::make(token::GT, ">"),
-            '(' => token::make(token::LPAREN, "("),
-            ')' => token::make(token::RPAREN, ")"),
-            '{' => token::make(token::LBRACE, "{"),
-            '}' => token::make(token::RBRACE, "}"),
-            ',' => token::make(token::COMMA, ","),
-            ';' => token::make(token::SEMICOLON, ";"),
-            '\0' => token::make(token::EOF, ""),
+            b'<' => token::make(token::LT, "<"),
+            b'>' => token::make(token::GT, ">"),
+            b'(' => token::make(token::LPAREN, "("),
+            b')' => token::make(token::RPAREN, ")"),
+            b'{' => token::make(token::LBRACE, "{"),
+            b'}' => token::make(token::RBRACE, "}"),
+            b',' => token::make(token::COMMA, ","),
+            b';' => token::make(token::SEMICOLON, ";"),
+            b'\0' => token::make(token::EOF, ""),
 
             x if is_letter(x) => {
                 let literal = self.read_identifier();
@@ -135,8 +132,7 @@ impl <'a>Lexer<'a> {
             }
 
             x if is_digit(x) => {
-                let digit = self.read_digit();
-                return token::Token{typ: token::INT, literal: digit}
+                return token::Token{typ: token::INT, literal: self.read_digit()}
             }
             _ => token::make(token::ILLEGAL, "ILLEGAL"),
         };
@@ -149,16 +145,15 @@ impl <'a>Lexer<'a> {
 mod tests {
     use super::*;
 
-    fn tok(t: token::TokenType, s: &'static str) -> (::token::TokenType, String)  {
+    fn tok(t: token::TokenType, s: &str) -> (::token::TokenType, String)  {
         (t, String::from(s))
     }
 
     #[test]
     fn lexing_1() {
-        let input = String::from("=+(){},;");
+        let input = "=+(){},;";
 
-        let mut l = Lexer::new(input.as_str());
-
+        let mut l = Lexer::new(input);
 
         let tests = vec![
             tok(token::ASSIGN, "="),
@@ -181,8 +176,7 @@ mod tests {
 
     #[test]
     fn lexing_2() {
-        let input = String::from(
-            "
+        let input = "
 let five = 5;
 let ten = 10;
 
@@ -202,11 +196,11 @@ if (5 < 10) {
 
 10 == 10;
 10 != 9;
-",
-        );
+";
 
 
-        let mut l = Lexer::new(input.as_str());
+
+        let mut l = Lexer::new(input);
 
         let tests = vec![
             tok(token::LET, "let"),
@@ -292,7 +286,6 @@ if (5 < 10) {
 
         for t in tests {
             let tok = l.next_token();
-            println!("testing: {:?}", tok);
             assert_eq!(tok.typ, t.0);
             assert_eq!(tok.literal, t.1);
         }
@@ -300,11 +293,11 @@ if (5 < 10) {
 
     #[test]
     fn test_is_letter() {
-        assert!(is_letter('z'));
-        assert!(is_letter('A'));
-        assert!(!is_letter('1'));
-        assert!(is_letter('_'));
-        assert!(!is_letter(' '));
-        assert!(!is_letter('{'));
+        assert!(is_letter(b'z'));
+        assert!(is_letter(b'A'));
+        assert!(!is_letter(b'1'));
+        assert!(is_letter(b'_'));
+        assert!(!is_letter(b' '));
+        assert!(!is_letter(b'{'));
     }
 }

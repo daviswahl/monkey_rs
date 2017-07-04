@@ -2,7 +2,7 @@ use token;
 use std::fmt;
 
 pub trait Node : fmt::Display {
-    fn token_literal(&self) -> String;
+    fn token_literal(&self) -> &str;
 }
 
 #[derive(Debug, Clone)]
@@ -14,7 +14,7 @@ pub enum Statement {
 }
 
 impl Node for Statement {
-    fn token_literal(&self) -> String {
+    fn token_literal(&self) -> &str {
         match *self {
             Statement::Let(ref stmt) => stmt.token_literal(),
             Statement::Return(ref stmt) => stmt.token_literal(),
@@ -48,7 +48,7 @@ pub enum Expression {
 }
 
 impl Node for Expression {
-    fn token_literal(&self) -> String {
+    fn token_literal(&self) -> &str {
         match *self {
             Expression::Unit(ref stmt) => stmt.token_literal(),
             Expression::Identifier(ref stmt) => stmt.token_literal(),
@@ -80,11 +80,11 @@ pub struct Program {
 }
 
 impl Node for Program {
-    fn token_literal(&self) -> String {
+    fn token_literal(&self) -> &str {
         if self.statements.len() >= 1 {
             return self.statements[0].token_literal()
         }
-        String::from("")
+        ""
     }
 }
 
@@ -105,8 +105,8 @@ pub struct IdentifierExpression {
 
 
 impl Node for IdentifierExpression {
-    fn token_literal(&self) ->  String {
-        self.token.literal.clone()
+    fn token_literal(&self) ->  &str {
+        self.token.literal.as_str()
     }
 }
 
@@ -132,8 +132,8 @@ pub struct LetStatement {
 }
 
 impl Node for LetStatement {
-    fn token_literal(&self) -> String {
-        self.token.literal.clone()
+    fn token_literal(&self) -> &str {
+        self.token.literal.as_str()
     }
 }
 
@@ -157,8 +157,8 @@ impl fmt::Display for ReturnStatement {
 }
 
 impl Node for ReturnStatement {
-    fn token_literal(&self) -> String {
-        self.token.literal.clone()
+    fn token_literal(&self) -> &str {
+        self.token.literal.as_str()
     }
 }
 
@@ -169,8 +169,8 @@ pub struct ExpressionStatement {
 }
 
 impl Node for ExpressionStatement {
-    fn token_literal(&self) -> String {
-        self.token.literal.clone()
+    fn token_literal(&self) -> &str {
+        self.token.literal.as_str()
     }
 }
 
@@ -184,8 +184,8 @@ impl fmt::Display for ExpressionStatement {
 pub struct UnitExpression ();
 
 impl Node for UnitExpression {
-    fn token_literal(&self) -> String {
-        String::from("()")
+    fn token_literal(&self) -> &str {
+        "()"
     }
 }
 
@@ -202,8 +202,8 @@ pub struct IntegerLiteral {
 }
 
 impl Node for IntegerLiteral {
-    fn token_literal(&self) -> String{
-        self.value.to_string()
+    fn token_literal(&self) -> &str{
+        self.token.literal.as_str()
     }
 }
 
@@ -221,8 +221,8 @@ pub struct PrefixExpression {
 }
 
 impl Node for PrefixExpression {
-    fn token_literal(&self) -> String {
-        self.token.literal.clone()
+    fn token_literal(&self) -> &str {
+        self.token.literal.as_str()
     }
 }
 
@@ -241,8 +241,8 @@ pub struct InfixExpression {
 }
 
 impl Node for InfixExpression {
-    fn token_literal(&self) -> String {
-        self.token.literal.clone()
+    fn token_literal(&self) -> &str {
+        self.token.literal.as_str()
     }
 }
 
@@ -259,8 +259,8 @@ pub struct BooleanExpression {
 }
 
 impl Node for BooleanExpression {
-    fn token_literal(&self) -> String {
-        self.token.literal.clone()
+    fn token_literal(&self) -> &str {
+        self.token.literal.as_str()
     }
 }
 impl fmt::Display for BooleanExpression {
@@ -278,8 +278,8 @@ pub struct IfExpression {
 }
 
 impl Node for IfExpression {
-    fn token_literal(&self) -> String {
-        self.token.literal.clone()
+    fn token_literal(&self) -> &str {
+        self.token.literal.as_str()
     }
 }
 impl fmt::Display for IfExpression {
@@ -300,8 +300,8 @@ pub struct BlockStatement {
 }
 
 impl Node for BlockStatement {
-    fn token_literal(&self) -> String {
-        self.token.literal.clone()
+    fn token_literal(&self) -> &str {
+        self.token.literal.as_str()
     }
 }
 impl fmt::Display for BlockStatement {

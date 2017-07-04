@@ -41,7 +41,7 @@ impl Precedence {
     }
 }
 
-impl <'a>Parser<'a> {
+impl<'a> Parser<'a> {
     pub fn new(mut l: lexer::Lexer<'a>) -> Parser {
         let cur = l.next_token();
         let peek = l.next_token();
@@ -101,42 +101,18 @@ impl <'a>Parser<'a> {
             token::TRUE | token::FALSE => self.parse_boolean(),
             token::LPAREN => self.parse_grouped_expression(),
             token::IF => self.parse_if_expression(),
-            x => {
-                println!("No prefix token: {}", x);
-                None
-            }
+            _ => None,
         };
 
-        if left.is_none() {
-            return None;
-        }
-
         while !self.peek_token_is(token::SEMICOLON) && p < self.peek_precedence() {
-            println!("left: {:?}, self: {:?}", left, self.peek_token);
-            let new = left.clone().and_then(|exp| match self.peek_token.typ {
-                token::PLUS | token::MINUS => {
+            left = left.and_then(|exp| match self.peek_token.typ {
+                token::PLUS | token::MINUS | token::SLASH | token::ASTERISK | token::EQ |
+                token::NOT_EQ | token::LT | token::GT => {
                     self.next_token();
                     self.parse_infix_expression(exp)
                 }
-                token::SLASH | token::ASTERISK => {
-                    self.next_token();
-                    self.parse_infix_expression(exp)
-                }
-                token::EQ | token::NOT_EQ => {
-                    self.next_token();
-                    self.parse_infix_expression(exp)
-                }
-                token::LT | token::GT => {
-                    self.next_token();
-                    self.parse_infix_expression(exp)
-                }
-                _ => None,
+                _ => Some(exp),
             });
-
-            if new.is_none() {
-                return left;
-            }
-            left = new;
         }
         left
     }
@@ -168,12 +144,14 @@ impl <'a>Parser<'a> {
                     self.next_token();
 
                     if !self.expect_peek(token::LBRACE) {
-                       None
+                        None
                     } else {
                         self.next_token();
                         self.parse_block_statement()
                     }
-                } else { None };
+                } else {
+                    None
+                };
 
                 ast::Expression::If(ast::IfExpression {
                     token: tok,
@@ -329,10 +307,8 @@ impl <'a>Parser<'a> {
 
 
         while self.cur_token.typ != token::EOF {
-            let stmt = self.parse_statement();
-            match stmt {
-                Some(s) => statements.push(s),
-                None => (),
+            if let Some(s) = self.parse_statement() {
+                statements.push(s);
             }
             self.next_token();
         }
@@ -345,11 +321,11 @@ impl <'a>Parser<'a> {
 mod tests {
     use super::*;
 
-    fn make_parser(s: &'static str) -> Parser {
+    fn make_parser(s: &str) -> Parser {
         Parser::new(make_lexer(s))
     }
 
-    fn make_lexer(s: &'static str) -> lexer::Lexer {
+    fn make_lexer(s: &str) -> lexer::Lexer {
         lexer::Lexer::new(s)
     }
 
@@ -486,7 +462,7 @@ foobar;
     }
 
     fn test_block_statement<F>(stmt: &ast::Statement, f: F)
-        where
+    where
         F: Fn(&Vec<ast::Statement>),
     {
         match stmt {
@@ -653,9 +629,10 @@ foobar;
 
 
                 test_block_statement(&*ifexp.consequence, |stmts| {
-                    test_statement_expression(&stmts[0], |stmt| {
-                        test_identifier_literal(stmt, "x");
-                    });
+                    test_statement_expression(
+                        &stmts[0],
+                        |stmt| { test_identifier_literal(stmt, "x"); },
+                    );
                 });
             })
         })
@@ -678,17 +655,19 @@ foobar;
 
 
                 test_block_statement(&*ifexp.consequence, |stmts| {
-                    test_statement_expression(&stmts[0], |stmt| {
-                        test_identifier_literal(stmt, "x");
-                    });
+                    test_statement_expression(
+                        &stmts[0],
+                        |stmt| { test_identifier_literal(stmt, "x"); },
+                    );
                 });
 
                 let alt = ifexp.alternative.as_ref().unwrap();
-                    test_block_statement(&alt, |stmts| {
-                        test_statement_expression(&stmts[0], |stmt| {
-                            test_identifier_literal(stmt, "y");
-                        });
-                    });
+                test_block_statement(&alt, |stmts| {
+                    test_statement_expression(
+                        &stmts[0],
+                        |stmt| { test_identifier_literal(stmt, "y"); },
+                    );
+                });
 
             })
         })
