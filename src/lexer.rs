@@ -1,5 +1,6 @@
 use token;
 
+#[derive(Debug)]
 pub struct Lexer {
     input: Vec<u8>,
     pub pos: usize,

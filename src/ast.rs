@@ -5,10 +5,12 @@ pub trait Node : fmt::Display {
     fn token_literal(&self) -> String;
 }
 
+#[derive(Debug, Clone)]
 pub enum Statement {
     Let(LetStatement),
     Return(ReturnStatement),
     Expression(ExpressionStatement),
+    Block(BlockStatement),
 }
 
 impl Node for Statement {
@@ -17,6 +19,7 @@ impl Node for Statement {
             Statement::Let(ref stmt) => stmt.token_literal(),
             Statement::Return(ref stmt) => stmt.token_literal(),
             Statement::Expression(ref stmt) => stmt.token_literal(),
+            Statement::Block(ref stmt) => stmt.token_literal(),
         }
     }
 }
@@ -27,6 +30,7 @@ impl fmt::Display for Statement {
             Statement::Let(ref stmt) => stmt.fmt(f),
             Statement::Return(ref stmt) => stmt.fmt(f),
             Statement::Expression(ref stmt) => stmt.fmt(f),
+            Statement::Block(ref stmt) => stmt.fmt(f),
         }
     }
 }
@@ -39,6 +43,8 @@ pub enum Expression {
     Integer(IntegerLiteral),
     Prefix(PrefixExpression),
     Infix(InfixExpression),
+    Boolean(BooleanExpression),
+    If(IfExpression)
 }
 
 impl Node for Expression {
@@ -49,6 +55,8 @@ impl Node for Expression {
             Expression::Integer(ref stmt) => stmt.token_literal(),
             Expression::Prefix(ref exp) => exp.token_literal(),
             Expression::Infix(ref exp) => exp.token_literal(),
+            Expression::Boolean(ref exp) => exp.token_literal(),
+            Expression::If(ref exp) => exp.token_literal(),
         }
     }
 }
@@ -61,6 +69,8 @@ impl fmt::Display for Expression {
             Expression::Integer(ref stmt) => stmt.fmt(f),
             Expression::Prefix(ref exp) => exp.fmt(f),
             Expression::Infix(ref exp) => exp.fmt(f),
+            Expression::Boolean(ref exp) => exp.fmt(f),
+            Expression::If(ref exp) => exp.fmt(f),
         }
     }
 }
@@ -114,6 +124,7 @@ impl IdentifierExpression {
 }
 
 // Let Statement
+#[derive(Debug, Clone)]
 pub struct LetStatement {
     pub token: token::Token,
     pub name: IdentifierExpression,
@@ -133,6 +144,7 @@ impl fmt::Display for LetStatement {
 }
 
 // Return Statement
+#[derive(Debug, Clone)]
 pub struct ReturnStatement {
     pub token: token::Token,
     pub value: Expression,
@@ -239,6 +251,66 @@ impl fmt::Display for InfixExpression {
         write!(f, "({} {} {})", self.left, self.operator, self.right)
     }
 }
+
+#[derive(Debug, Clone)]
+pub struct BooleanExpression {
+    pub token: token::Token,
+    pub value: bool,
+}
+
+impl Node for BooleanExpression {
+    fn token_literal(&self) -> String {
+        self.token.literal.clone()
+    }
+}
+impl fmt::Display for BooleanExpression {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.value)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct IfExpression {
+    pub token: token::Token,
+    pub condition: Box<Expression>,
+    pub consequence: Box<Statement>,
+    pub alternative: Option<Box<Statement>>,
+}
+
+impl Node for IfExpression {
+    fn token_literal(&self) -> String {
+        self.token.literal.clone()
+    }
+}
+impl fmt::Display for IfExpression {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "if{} {}", self.condition, self.consequence);
+        self.alternative.as_ref().map(|alt| {
+            write!(f, "else {}", &alt);
+        });
+
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct BlockStatement {
+    pub token: token::Token,
+    pub statements: Vec<Statement>,
+}
+
+impl Node for BlockStatement {
+    fn token_literal(&self) -> String {
+        self.token.literal.clone()
+    }
+}
+impl fmt::Display for BlockStatement {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        for stmt in &self.statements { write!(f, "{}", stmt); }
+        Ok(())
+    }
+}
+
 
 #[cfg(tests)]
 mod tests {
