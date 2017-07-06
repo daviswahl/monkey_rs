@@ -44,7 +44,8 @@ pub enum Expression {
     Prefix(PrefixExpression),
     Infix(InfixExpression),
     Boolean(BooleanExpression),
-    If(IfExpression)
+    If(IfExpression),
+    Function(FunctionLiteral)
 }
 
 impl Node for Expression {
@@ -57,6 +58,7 @@ impl Node for Expression {
             Expression::Infix(ref exp) => exp.token_literal(),
             Expression::Boolean(ref exp) => exp.token_literal(),
             Expression::If(ref exp) => exp.token_literal(),
+            Expression::Function(ref exp) => exp.token_literal(),
         }
     }
 }
@@ -71,6 +73,7 @@ impl fmt::Display for Expression {
             Expression::Infix(ref exp) => exp.fmt(f),
             Expression::Boolean(ref exp) => exp.fmt(f),
             Expression::If(ref exp) => exp.fmt(f),
+            Expression::Function(ref exp) => exp.fmt(f),
         }
     }
 }
@@ -311,6 +314,25 @@ impl fmt::Display for BlockStatement {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct FunctionLiteral {
+    pub token: token::Token,
+    pub parameters: Vec<Box<Expression>>,
+    pub body: Box<Statement>
+}
+
+impl Node for FunctionLiteral {
+    fn token_literal(&self) -> &str {
+        self.token.literal.as_str()
+    }
+}
+
+impl fmt::Display for FunctionLiteral {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let params: String = self.parameters.iter().map(|p| format!("{}", p)).collect::<Vec<String>>().join(",");
+        write!(f, "{}({}) {}", self.token_literal(), params, *self.body)
+    }
+}
 
 #[cfg(tests)]
 mod tests {

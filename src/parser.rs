@@ -101,8 +101,13 @@ impl<'a> Parser<'a> {
             token::TRUE | token::FALSE => self.parse_boolean(),
             token::LPAREN => self.parse_grouped_expression(),
             token::IF => self.parse_if_expression(),
+            token::FUNCTION => self.parse_fn_literal(),
             _ => None,
         };
+
+        if left.is_none() {
+            return None;
+        }
 
         while !self.peek_token_is(token::SEMICOLON) && p < self.peek_precedence() {
             left = left.and_then(|exp| match self.peek_token.typ {
@@ -115,6 +120,53 @@ impl<'a> Parser<'a> {
             });
         }
         left
+    }
+
+    fn parse_fn_literal(&mut self) -> Option<ast::Expression> {
+        if !self.expect_peek(token::LPAREN) {
+            return None;
+        }
+        let tok = self.next_token();
+
+        let parameters = self.parse_function_parameters();
+
+        if !self.expect_peek(token::LBRACE) {
+            return None;
+        }
+        self.next_token();
+
+        self.parse_block_statement().map(|body| {
+            ast::Expression::Function(ast::FunctionLiteral {
+                token: tok,
+                parameters: parameters.into_iter().map(Box::new).collect(),
+                body: Box::new(body),
+            })
+        })
+    }
+
+    fn parse_function_parameters(&mut self) -> Vec<ast::Expression> {
+        if self.peek_token_is(token::RPAREN) {
+            self.next_token();
+            return vec![];
+        }
+
+        self.next_token();
+        let mut params = vec![];
+
+        self.parse_identifier().map(|exp| params.push(exp));
+
+        while self.peek_token_is(token::COMMA) {
+            self.next_token();
+            self.next_token();
+            self.parse_identifier().map(|exp| params.push(exp));
+        }
+
+        if !self.expect_peek(token::RPAREN) {
+            return vec![];
+        }
+        self.next_token();
+
+        params
     }
 
     fn parse_if_expression(&mut self) -> Option<ast::Expression> {
@@ -501,6 +553,16 @@ foobar;
         }
     }
 
+    fn test_fn_exp<F>(exp: &ast::Expression, f: F)
+    where
+        F: Fn(&ast::FunctionLiteral),
+    {
+        match exp {
+            &ast::Expression::Function(ref func) => f(func),
+            _ => assert!(false, "Expected function literal"),
+        }
+    }
+
     fn test_prefix_expression<F>(exp: &ast::Expression, f: F)
     where
         F: Fn(&ast::PrefixExpression),
@@ -669,6 +731,31 @@ foobar;
                     );
                 });
 
+            })
+        })
+    }
+
+    #[test]
+    fn test_function_literal() {
+        let input = "fn(x, y) { x  + y }";
+        let mut parser = make_parser(input);
+        let program = parser.parse();
+        test_no_errors(&parser);
+
+        test_statement_expression(&program.statements[0], |exp| {
+            test_fn_exp(exp, |fnexp| {
+                test_identifier_literal(&fnexp.parameters[0], "x");
+                test_identifier_literal(&fnexp.parameters[1], "y");
+
+                test_block_statement(&*fnexp.body, |stmts| {
+                    test_statement_expression(&stmts[0], |stmt| {
+                        test_infix_expression(&stmt, |infix| {
+                            test_identifier_literal(&infix.left, "x");
+                            assert_eq!(infix.operator, "+");
+                            test_identifier_literal(&infix.right, "y");
+                        })
+                    });
+                });
             })
         })
     }
