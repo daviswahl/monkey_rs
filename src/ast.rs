@@ -45,7 +45,8 @@ pub enum Expression {
     Infix(InfixExpression),
     Boolean(BooleanExpression),
     If(IfExpression),
-    Function(FunctionLiteral)
+    Function(FunctionLiteral),
+        Call(CallExpression)
 }
 
 impl Node for Expression {
@@ -59,6 +60,7 @@ impl Node for Expression {
             Expression::Boolean(ref exp) => exp.token_literal(),
             Expression::If(ref exp) => exp.token_literal(),
             Expression::Function(ref exp) => exp.token_literal(),
+            Expression::Call(ref exp) => exp.token_literal(),
         }
     }
 }
@@ -74,6 +76,7 @@ impl fmt::Display for Expression {
             Expression::Boolean(ref exp) => exp.fmt(f),
             Expression::If(ref exp) => exp.fmt(f),
             Expression::Function(ref exp) => exp.fmt(f),
+            Expression::Call(ref exp) => exp.fmt(f),
         }
     }
 }
@@ -131,7 +134,7 @@ impl IdentifierExpression {
 pub struct LetStatement {
     pub token: token::Token,
     pub name: IdentifierExpression,
-    pub value: Expression,
+    pub value: Box<Expression>,
 }
 
 impl Node for LetStatement {
@@ -150,7 +153,7 @@ impl fmt::Display for LetStatement {
 #[derive(Debug, Clone)]
 pub struct ReturnStatement {
     pub token: token::Token,
-    pub value: Expression,
+    pub value: Box<Expression>,
 }
 
 impl fmt::Display for ReturnStatement {
@@ -331,6 +334,26 @@ impl fmt::Display for FunctionLiteral {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let params: String = self.parameters.iter().map(|p| format!("{}", p)).collect::<Vec<String>>().join(",");
         write!(f, "{}({}) {}", self.token_literal(), params, *self.body)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct CallExpression {
+    pub token: token::Token,
+    pub function: Box<Expression>,
+    pub arguments: Vec<Box<Expression>>,
+}
+
+impl Node for CallExpression {
+    fn token_literal(&self) -> &str {
+        self.token.literal.as_str()
+    }
+}
+
+impl fmt::Display for CallExpression {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let params: String = self.arguments.iter().map(|p| format!("{}", p)).collect::<Vec<String>>().join(", ");
+        write!(f, "{}({})", self.function, params)
     }
 }
 
