@@ -6,11 +6,11 @@ mod token;
 mod lexer;
 mod ast;
 mod parser;
+mod object;
+mod evaluator;
 
-pub fn parse(s: &str) -> ast::Program {
-    let l = lexer::Lexer::new(s);
-    let mut p = parser::Parser::new(l);
-    p.parse()
+pub fn parse(s: &str) -> ast::Node {
+    parser::parse(s)
 }
 
 mod tests {

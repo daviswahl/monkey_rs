@@ -1,7 +1,33 @@
 use token;
 use std::fmt;
 
-pub trait Node : fmt::Display {
+#[derive(Debug, Clone)]
+pub enum Node {
+    Statement(Statement),
+    Expression(Expression),
+    Program(Program),
+}
+
+impl AstNode for Node {
+    fn token_literal(&self) -> &str {
+        match *self {
+            Node::Statement(ref node) => node.token_literal(),
+            Node::Expression(ref node) => node.token_literal(),
+            Node::Program(ref node) => node.token_literal(),
+        }
+    }
+}
+
+impl fmt::Display for Node {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            Node::Program(ref node) => node.fmt(f),
+            Node::Expression(ref node) => node.fmt(f),
+            Node::Statement(ref node) => node.fmt(f),
+        }
+    }
+}
+pub trait AstNode: fmt::Display {
     fn token_literal(&self) -> &str;
 }
 
@@ -13,7 +39,7 @@ pub enum Statement {
     Block(BlockStatement),
 }
 
-impl Node for Statement {
+impl AstNode for Statement {
     fn token_literal(&self) -> &str {
         match *self {
             Statement::Let(ref stmt) => stmt.token_literal(),
@@ -46,10 +72,10 @@ pub enum Expression {
     Boolean(BooleanExpression),
     If(IfExpression),
     Function(FunctionLiteral),
-        Call(CallExpression)
+    Call(CallExpression),
 }
 
-impl Node for Expression {
+impl AstNode for Expression {
     fn token_literal(&self) -> &str {
         match *self {
             Expression::Unit(ref stmt) => stmt.token_literal(),
@@ -81,14 +107,15 @@ impl fmt::Display for Expression {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct Program {
-    pub statements: Vec<Statement>,
+    pub statements: Vec<Node>,
 }
 
-impl Node for Program {
+impl AstNode for Program {
     fn token_literal(&self) -> &str {
         if self.statements.len() >= 1 {
-            return self.statements[0].token_literal()
+            return self.statements[0].token_literal();
         }
         ""
     }
@@ -110,8 +137,9 @@ pub struct IdentifierExpression {
 }
 
 
-impl Node for IdentifierExpression {
-    fn token_literal(&self) ->  &str {
+impl AstNode for IdentifierExpression {
+
+    fn token_literal(&self) -> &str {
         self.token.literal.as_str()
     }
 }
@@ -125,7 +153,10 @@ impl fmt::Display for IdentifierExpression {
 impl IdentifierExpression {
     pub fn new(t: token::Token) -> IdentifierExpression {
         let lit = t.literal.clone();
-        IdentifierExpression{token: t, value: lit}
+        IdentifierExpression {
+            token: t,
+            value: lit,
+        }
     }
 }
 
@@ -137,7 +168,7 @@ pub struct LetStatement {
     pub value: Box<Expression>,
 }
 
-impl Node for LetStatement {
+impl AstNode for LetStatement {
     fn token_literal(&self) -> &str {
         self.token.literal.as_str()
     }
@@ -145,7 +176,13 @@ impl Node for LetStatement {
 
 impl fmt::Display for LetStatement {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{} {} = {};", self.token_literal(), self.name, self.value)
+        write!(
+            f,
+            "{} {} = {};",
+            self.token_literal(),
+            self.name,
+            self.value
+        )
     }
 }
 
@@ -162,7 +199,8 @@ impl fmt::Display for ReturnStatement {
     }
 }
 
-impl Node for ReturnStatement {
+impl AstNode for ReturnStatement {
+
     fn token_literal(&self) -> &str {
         self.token.literal.as_str()
     }
@@ -174,7 +212,8 @@ pub struct ExpressionStatement {
     pub value: Expression,
 }
 
-impl Node for ExpressionStatement {
+impl AstNode for ExpressionStatement {
+
     fn token_literal(&self) -> &str {
         self.token.literal.as_str()
     }
@@ -187,9 +226,10 @@ impl fmt::Display for ExpressionStatement {
 }
 
 #[derive(Debug, Clone)]
-pub struct UnitExpression ();
+pub struct UnitExpression();
 
-impl Node for UnitExpression {
+impl AstNode for UnitExpression {
+
     fn token_literal(&self) -> &str {
         "()"
     }
@@ -207,8 +247,9 @@ pub struct IntegerLiteral {
     pub value: i64,
 }
 
-impl Node for IntegerLiteral {
-    fn token_literal(&self) -> &str{
+impl AstNode for IntegerLiteral {
+
+    fn token_literal(&self) -> &str {
         self.token.literal.as_str()
     }
 }
@@ -226,7 +267,8 @@ pub struct PrefixExpression {
     pub right: Box<Expression>,
 }
 
-impl Node for PrefixExpression {
+impl AstNode for PrefixExpression {
+
     fn token_literal(&self) -> &str {
         self.token.literal.as_str()
     }
@@ -246,7 +288,8 @@ pub struct InfixExpression {
     pub right: Box<Expression>,
 }
 
-impl Node for InfixExpression {
+impl AstNode for InfixExpression {
+
     fn token_literal(&self) -> &str {
         self.token.literal.as_str()
     }
@@ -264,7 +307,8 @@ pub struct BooleanExpression {
     pub value: bool,
 }
 
-impl Node for BooleanExpression {
+impl AstNode for BooleanExpression {
+
     fn token_literal(&self) -> &str {
         self.token.literal.as_str()
     }
@@ -283,7 +327,8 @@ pub struct IfExpression {
     pub alternative: Option<Box<Statement>>,
 }
 
-impl Node for IfExpression {
+impl AstNode for IfExpression {
+
     fn token_literal(&self) -> &str {
         self.token.literal.as_str()
     }
@@ -291,9 +336,9 @@ impl Node for IfExpression {
 impl fmt::Display for IfExpression {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "if{} {}", self.condition, self.consequence)?;
-        self.alternative.as_ref().map(|alt| {
-            write!(f, "else {}", &alt)
-        });
+        self.alternative.as_ref().map(
+            |alt| write!(f, "else {}", &alt),
+        );
 
         Ok(())
     }
@@ -302,17 +347,20 @@ impl fmt::Display for IfExpression {
 #[derive(Debug, Clone)]
 pub struct BlockStatement {
     pub token: token::Token,
-    pub statements: Vec<Statement>,
+    pub statements: Vec<Node>,
 }
 
-impl Node for BlockStatement {
+impl AstNode for BlockStatement {
+
     fn token_literal(&self) -> &str {
         self.token.literal.as_str()
     }
 }
 impl fmt::Display for BlockStatement {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        for stmt in &self.statements { write!(f, "{}", stmt)?; }
+        for stmt in &self.statements {
+            write!(f, "{}", stmt)?;
+        }
         Ok(())
     }
 }
@@ -321,10 +369,11 @@ impl fmt::Display for BlockStatement {
 pub struct FunctionLiteral {
     pub token: token::Token,
     pub parameters: Vec<Box<Expression>>,
-    pub body: Box<Statement>
+    pub body: Box<Statement>,
 }
 
-impl Node for FunctionLiteral {
+impl AstNode for FunctionLiteral {
+
     fn token_literal(&self) -> &str {
         self.token.literal.as_str()
     }
@@ -332,7 +381,11 @@ impl Node for FunctionLiteral {
 
 impl fmt::Display for FunctionLiteral {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let params: String = self.parameters.iter().map(|p| format!("{}", p)).collect::<Vec<String>>().join(",");
+        let params: String = self.parameters
+            .iter()
+            .map(|p| format!("{}", p))
+            .collect::<Vec<String>>()
+            .join(",");
         write!(f, "{}({}) {}", self.token_literal(), params, *self.body)
     }
 }
@@ -344,7 +397,8 @@ pub struct CallExpression {
     pub arguments: Vec<Box<Expression>>,
 }
 
-impl Node for CallExpression {
+impl AstNode for CallExpression {
+
     fn token_literal(&self) -> &str {
         self.token.literal.as_str()
     }
@@ -352,7 +406,11 @@ impl Node for CallExpression {
 
 impl fmt::Display for CallExpression {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let params: String = self.arguments.iter().map(|p| format!("{}", p)).collect::<Vec<String>>().join(", ");
+        let params: String = self.arguments
+            .iter()
+            .map(|p| format!("{}", p))
+            .collect::<Vec<String>>()
+            .join(", ");
         write!(f, "{}({})", self.function, params)
     }
 }
