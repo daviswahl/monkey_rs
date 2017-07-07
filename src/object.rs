@@ -12,18 +12,25 @@ const INTEGER_OBJ: ObjectType = "INTEGER";
 const BOOLEAN_OBJ: ObjectType = "BOOLEAN";
 const NULL_OBJ: ObjectType = "NULL";
 
-pub trait Obj {
+pub trait Obj : Into<Object> {
     fn typ(&self) -> ObjectType;
     fn inspect(&self) -> String;
 }
-
 
 #[derive(Debug)]
 pub struct Integer {
     pub value: i64,
 }
 
+
+impl From<Integer> for Object {
+    fn from(i: Integer) -> Self {
+        Object::Integer(i)
+    }
+}
+
 impl Obj for Integer {
+
     fn typ(&self) -> ObjectType {
         INTEGER_OBJ
     }
@@ -36,6 +43,12 @@ impl Obj for Integer {
 #[derive(Debug)]
 struct Boolean {
     value: bool,
+}
+
+impl From<Boolean> for Object {
+    fn from(b: Boolean) -> Self {
+        Object::Boolean(b)
+    }
 }
 
 impl Obj for Boolean {
@@ -51,6 +64,12 @@ impl Obj for Boolean {
 
 #[derive(Debug)]
 struct Null {}
+
+impl From<Null> for Object {
+    fn from(n: Null) -> Self {
+        Object::Null(n)
+    }
+}
 
 impl Obj for Null {
     fn typ(&self) -> ObjectType {

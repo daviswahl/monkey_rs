@@ -31,7 +31,7 @@ fn eval_statement<'a, 'b>(stmt: &'a ast::Statement) -> Result<object::Object, &'
 fn eval_expression<'a, 'b>(exp: &'a ast::Expression) -> Result<object::Object, &'b str> {
     use ast::Expression::*;
     match exp {
-        &Integer(ref i) => Ok(object::Object::Integer(object::Integer{value: i.value})),
+        &Integer(ref i) => Ok(object::Integer{value: i.value}.into()),
         _ => Err("woops"),
     }
 }
