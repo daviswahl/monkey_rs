@@ -9,6 +9,10 @@ mod parser;
 mod object;
 mod evaluator;
 
+pub fn eval(s: &str) {
+    let p = parse(s);
+    evaluator::eval(&p);
+}
 pub fn parse(s: &str) -> ast::Node {
     parser::parse(s)
 }
