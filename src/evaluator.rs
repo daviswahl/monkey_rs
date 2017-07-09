@@ -14,7 +14,7 @@ struct Environment<'a, 'b> {
 }
 struct Evaluator {}
 
-type ObjectResult<'a> = Result<object::Object, &'a str>;
+type ObjectResult<'a> = Result<object::Object, String>;
 
 fn eval_bang_prefix_op_exp<'a>(obj: &Object) -> ObjectResult<'a> {
     let result = match *obj {
@@ -46,10 +46,10 @@ fn eval_infix_expression<'a>(op: &str, left: &Object, right: &Object) -> ObjectR
             match op {
                 "==" => Object::Boolean(l == r),
                 "!=" => Object::Boolean(l != r),
-                _ => Object::Null,
+                x => return Err(format!("unknown operator: BOOLEAN {} BOOLEAN", x))
             }
         }
-        _ => Object::Null,
+        (l, r) => return Err(format!("type mismatch: {} {} {}", l, op, r))
     };
 
     Ok(result)
@@ -58,7 +58,7 @@ fn eval_infix_expression<'a>(op: &str, left: &Object, right: &Object) -> ObjectR
 fn eval_minus_prefix_op_exp<'a>(obj: &Object) -> ObjectResult<'a> {
     let result = match *obj {
         Object::Integer(int) => Object::Integer(-int),
-        _ => Object::Null,
+        ref t => return Err(format!("unknown operator: -{}", t))
     };
     Ok(result)
 }
@@ -90,7 +90,7 @@ impl<'a> Evaluator {
 
             If(ref ifexp) => self.visit_cond_expression(ifexp, env),
 
-            _ => Err("unimpl"),
+            _ => Err(String::from("unimpl")),
         }
     }
 
@@ -119,7 +119,7 @@ impl<'a> Evaluator {
         match op {
             "!" => eval_bang_prefix_op_exp(right),
             "-" => eval_minus_prefix_op_exp(right),
-            _ => Err("Unimplemented"),
+            _ => Err(String::from("Unimplemented")),
         }
     }
 
@@ -172,7 +172,7 @@ impl<'a> Evaluator {
             },
             ref x => {
                 println!("{:?} is unimplemented", x);
-                Err("unimplemented")
+                Err(String::from("unimplemented"))
             }
         }
     }
@@ -183,7 +183,7 @@ pub fn eval<'a, 'b>(node: &'a ast::Node) -> ObjectResult<'b> {
     let mut visitor = Evaluator {};
     match *node {
         Program(ref program) => visitor.visit_program(program),
-        _ => Err("Expected Program"),
+        _ => Err(String::from("Expected Program")),
     }
 }
 #[cfg(test)]
@@ -191,12 +191,30 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_errors() {
+        let tests = vec![
+            ( "5 + true;", "type mismatch: INTEGER + BOOLEAN"),
+            ( "5 + true; 5", "type mismatch: INTEGER + BOOLEAN"),
+            ( "-true", "unknown operator: -BOOLEAN"),
+            ("true + false;", "unknown operator: BOOLEAN + BOOLEAN"),
+            ("5; true + false; 5", "unknown operator: BOOLEAN + BOOLEAN"),
+            ("if (10 > 1) { true + false; }", "unknown operator: BOOLEAN + BOOLEAN"),
+            ("if (10 > 1) { if (10 > 1) { return true + false; }; return 1; }", "unknown operator: BOOLEAN + BOOLEAN")
+        ];
+
+        for t in tests {
+            let evaluated = eval(&parser::parse(t.0));
+            assert_error(evaluated, t.1);
+        }
+    }
+
+    #[test]
     fn test_return_statements() {
         let tests = vec![
-           // ("return 10;", 10),
-           // ("return 10; 9;", 10),
-           // ("return 2 * 5; 9;", 10),
-           // ("9; return 2 * 5; 9;", 10),
+            ("return 10;", 10),
+            ("return 10; 9;", 10),
+            ("return 2 * 5; 9;", 10),
+            ("9; return 2 * 5; 9;", 10),
             ("if (10 > 1) { if (10 > 1) { return 10; } return 1; }", 10),
         ];
 
@@ -301,6 +319,13 @@ mod tests {
             (Object::Integer(l), Object::Integer(r)) => assert_eq!(l, r),
             (Object::Null, Object::Null) => assert!(true),
             _ => assert!(false),
+        }
+    }
+
+    fn assert_error<'a>(result: ObjectResult<'a>, err: &str) {
+        match result {
+            Ok(error) => assert!(false, "Expected error {}, got: {:?}", err, error),
+            Err(error) => assert_eq!(err, error)
         }
     }
 
