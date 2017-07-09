@@ -128,29 +128,36 @@ impl<'a> Evaluator {
             outer: None,
             env: HashMap::new(),
         };
+
+        let result = self.visit_statements(&n.statements, &env);
+        if let Ok(Object::Return(ret)) = result {
+            Ok(*ret)
+        } else {
+           result
+        }
+    }
+
+    fn visit_statements(&mut self, stmts: &Vec<ast::Node>, env: &Environment) -> ObjectResult<'a> {
+
         let mut result = Object::Null;
-        for stmt in n.statements.iter() {
+        for (i, stmt) in stmts.iter().enumerate() {
             if let &ast::Node::Statement(ref s) = stmt {
                 result = self.visit_statement(s, &env)?;
+                if let Object::Return(_) = result {
+                    return Ok(result)
+                }
             }
         }
 
         Ok(result)
     }
 
-
     fn visit_block_statement(
         &mut self,
         block: &ast::BlockStatement,
         env: &Environment,
     ) -> ObjectResult<'a> {
-        let mut result = Object::Null;
-        for stmt in block.statements.iter() {
-            if let &ast::Node::Statement(ref s) = stmt {
-                result = self.visit_statement(&s, &env)?;
-            }
-        }
-        Ok(result)
+        self.visit_statements(&block.statements, env)
     }
 
     fn visit_statement(&mut self, stmt: &ast::Statement, env: &Environment) -> ObjectResult<'a> {
@@ -158,7 +165,11 @@ impl<'a> Evaluator {
         match *stmt {
             Expression(ref expr) => self.visit_expr(&expr.value, env),
             Block(ref block) => self.visit_block_statement(block, env),
-
+            Return(ref ret) => {
+                let result = self.visit_expr(&ret.value, env)?;
+                let ret = Object::Return(Box::new(result));
+                Ok(ret)
+            },
             ref x => {
                 println!("{:?} is unimplemented", x);
                 Err("unimplemented")
@@ -178,6 +189,23 @@ pub fn eval<'a, 'b>(node: &'a ast::Node) -> ObjectResult<'b> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_return_statements() {
+        let tests = vec![
+           // ("return 10;", 10),
+           // ("return 10; 9;", 10),
+           // ("return 2 * 5; 9;", 10),
+           // ("9; return 2 * 5; 9;", 10),
+            ("if (10 > 1) { if (10 > 1) { return 10; } return 1; }", 10),
+        ];
+
+        for t in tests {
+            let evaluated = assert_eval(t.0);
+            assert_integer_obj(evaluated, t.1);
+        }
+    }
+
     #[test]
     fn test_if_else_exp() {
         let tests = vec![

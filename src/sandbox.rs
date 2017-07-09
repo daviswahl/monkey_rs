@@ -46,7 +46,25 @@ impl <'b>Lexer<'b> {
         cur_token
     }
 }
+fn wtf(v: &Vec<Option<&str>>) -> Result<&str, &str> {
 
+    let mut result = "";
+    for s in v {
+        if let Some(st) = s {
+            println!("entered: {:?}", st);
+
+            if let Object::Return(ret) = tmp {
+                println!("early return {:?}", ret);
+                return Ok(*ret);
+            } else {
+                println!("not returning {:?}", tmp);
+                result = tmp;
+            }
+        }
+    }
+
+    Ok(result)
+}
 #[cfg(test)]
 mod tests{
     use super::*;
