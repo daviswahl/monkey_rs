@@ -24,7 +24,7 @@ impl <'a>Environment<'a> {
         item
     }
 
-    pub fn set(&mut self, ident: String, obj: Object) {
+    pub fn set(&mut self, ident: String, obj: Object<'a>) {
         self.env.insert(ident, obj);
     }
 

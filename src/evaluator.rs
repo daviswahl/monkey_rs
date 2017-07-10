@@ -8,9 +8,12 @@ use lexer;
 use environment::Environment;
 
 
-struct Evaluator {}
+struct Evaluator<'a> {
+    last_value: Option<Object<'a>>
+}
 
-type ObjectResult<'a> = Result<object::Object<'a>, String>;
+type ObjectResult<'a> = Result<Object<'a>, String>;
+type ObjectRefResult<'a> = Result<&'a Object<'a>, String>;
 
 fn eval_bang_prefix_op_exp<'a>(obj: &Object) -> ObjectResult<'a> {
     let result = match *obj {
@@ -66,48 +69,57 @@ fn is_truthy(obj: &Object) -> bool {
     }
 }
 
-impl<'a> Evaluator {
-    fn visit_expr(&mut self, expr: &ast::Expression, env: &mut Environment) -> ObjectResult<'a> {
+impl<'a> Evaluator<'a> {
+    fn set_and_return_ref(&'a mut self, obj: Object<'a>) -> ObjectRefResult<'a> {
+        self.last_value = Some(obj);
+        self.last_value.as_ref().ok_or(String::from("weird"))
+
+    }
+    fn visit_expr(&'a mut self, expr: &ast::Expression, env: &'a mut Environment<'a>) -> ObjectRefResult<'a> {
         use ast::Expression::*;
         match *expr {
-            Integer(ref int) => Ok(Object::Integer(int.value)),
-            Boolean(ref b) => Ok(Object::Boolean(b.value)),
+            Integer(ref int) => self.set_and_return_ref(Object::Integer(int.value)),
+            Boolean(ref b) => self.set_and_return_ref(Object::Boolean(b.value)),
 
             Prefix(ref prefix) => {
                 let right = self.visit_expr(&*prefix.right, env)?;
-                self.visit_prefix_expression(prefix.operator.as_str(), &right, env)
+                let value = self.visit_prefix_expression(prefix.operator.as_str(), &right, env)?;
+                self.set_and_return_ref(value)
             }
 
             Infix(ref infix) => {
                 let left = self.visit_expr(&*infix.left, env)?;
                 let right = self.visit_expr(&*infix.right, env)?;
-                eval_infix_expression(infix.operator.as_str(), &left, &right)
+                let value = eval_infix_expression(infix.operator.as_str(), &left, &right)?;
+                self.set_and_return_ref(value)
             }
 
-            If(ref ifexp) => self.visit_cond_expression(ifexp, env),
+            If(ref ifexp) => {
+                self.visit_cond_expression(ifexp, env)
+            }
 
             Identifier(ref ident) => self.visit_identifier(ident, env),
             ref expr => Err(format!("Unimplemented: {}", expr)),
         }
     }
 
-    fn visit_identifier(&mut self, expr: &ast::IdentifierExpression, env: &mut Environment) -> ObjectResult<'a> {
-        env.get(expr.value.clone()).cloned().ok_or(format!("unknown identifier: {}", expr.value.clone()))
+    fn visit_identifier(&'a mut self, expr: &ast::IdentifierExpression, env: &'a mut Environment<'a>) -> ObjectRefResult<'a> {
+        env.get(expr.value.clone()).ok_or(format!("unknown identifier: {}", expr.value.clone()))
     }
 
     fn visit_cond_expression(
-        &mut self,
+        &'a mut self,
         ifexp: &ast::IfExpression,
-        env: &mut Environment,
-    ) -> ObjectResult<'a> {
+        env: &'a mut Environment<'a>,
+    ) -> ObjectRefResult<'a> {
         let cond = self.visit_expr(&*ifexp.condition, env)?;
 
-        if is_truthy(&cond) {
+        if is_truthy(cond) {
             self.visit_statement(&*ifexp.consequence, env)
         } else if let Some(ref alt) = ifexp.alternative {
             self.visit_statement(&**alt, env)
         } else {
-            Ok(Object::Null)
+            self.set_and_return_ref(Object::Null)
         }
     }
 
@@ -124,48 +136,49 @@ impl<'a> Evaluator {
         }
     }
 
-    fn visit_program(&mut self, n: &ast::Program) -> ObjectResult<'a> {
+    fn visit_program(&'a mut self, n: &ast::Program) -> ObjectRefResult<'a> {
         let mut env = Environment::new();
 
         let result = self.visit_statements(&n.statements, &mut env);
-        if let Ok(Object::Return(ret)) = result {
-            Ok(*ret)
+        if let Ok(&Object::Return(ret)) = result {
+            Ok(&*ret)
         } else {
            result
         }
     }
 
-    fn visit_statements(&mut self, stmts: &Vec<ast::Node>, env: &mut Environment) -> ObjectResult<'a> {
+    fn visit_statements(&'a mut self, stmts: &Vec<ast::Node>, env: &'a mut Environment<'a>) -> ObjectRefResult<'a> {
 
-        let mut result = Object::Null;
+        let mut result = object::NULL;
         for (i, stmt) in stmts.iter().enumerate() {
             if let &ast::Node::Statement(ref s) = stmt {
                 result = self.visit_statement(s, env)?;
-                if let Object::Return(_) = result {
+                if let &Object::Return(_) = result {
                     return Ok(result)
                 }
             }
+
         }
 
         Ok(result)
     }
 
-    fn visit_let_statement(&mut self, stmt: &ast::LetStatement, env: &mut Environment) -> ObjectResult<'a> {
+    fn visit_let_statement(&'a mut self, stmt: &ast::LetStatement, env: &'a mut Environment<'a>) -> ObjectRefResult<'a> {
         let ident = stmt.name.value.to_owned();
-        let value = self.visit_expr(&*stmt.value, env)?;
-        env.set(ident, value);
-        Ok(Object::Null)
+        self.visit_expr(&*stmt.value, env)?;
+        env.set(ident, self.last_value.take().unwrap());
+        Ok(object::NULL)
     }
 
     fn visit_block_statement(
-        &mut self,
+        &'a mut self,
         block: &ast::BlockStatement,
-        env: &mut Environment,
-    ) -> ObjectResult<'a> {
+        env: &'a mut Environment<'a>,
+    ) -> ObjectRefResult<'a> {
         self.visit_statements(&block.statements, env)
     }
 
-    fn visit_statement(&mut self, stmt: &ast::Statement, env: &mut Environment) -> ObjectResult<'a> {
+    fn visit_statement(&'a mut self, stmt: &ast::Statement, env: &'a mut Environment<'a>) -> ObjectRefResult<'a> {
         use ast::Statement::*;
         match *stmt {
 
@@ -176,7 +189,7 @@ impl<'a> Evaluator {
             Return(ref ret) => {
                 let result = self.visit_expr(&ret.value, env)?;
                 let ret = Object::Return(Box::new(result));
-                Ok(ret)
+                self.set_and_return_ref(ret)
             },
 
             Let(ref stmt) => {
@@ -188,11 +201,12 @@ impl<'a> Evaluator {
 
 pub fn eval<'a>(node: &'a ast::Node) -> ObjectResult<'a> {
     use ast::Node::*;
-    let mut visitor = Evaluator {};
-    match *node {
+    let mut visitor = Evaluator {last_value: None};
+    let result = match *node {
         Program(ref program) => visitor.visit_program(program),
         _ => Err(String::from("Expected Program")),
-    }
+    };
+    result.map(|res| res.clone())
 }
 #[cfg(test)]
 mod tests {
