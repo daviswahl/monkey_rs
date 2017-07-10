@@ -8,6 +8,7 @@ mod ast;
 mod parser;
 mod object;
 mod evaluator;
+mod environment;
 
 pub fn eval(s: &str) {
     let p = parse(s);
