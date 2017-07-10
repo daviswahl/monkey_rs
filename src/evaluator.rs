@@ -10,9 +10,9 @@ use environment::Environment;
 
 struct Evaluator {}
 
-type ObjectResult<'a> = Result<object::Object, String>;
+type ObjectResult = Result<object::Object, String>;
 
-fn eval_bang_prefix_op_exp<'a>(obj: &Object) -> ObjectResult<'a> {
+fn eval_bang_prefix_op_exp<'a>(obj: &Object) -> ObjectResult {
     let result = match *obj {
         Object::Boolean(true) => Object::Boolean(false),
         Object::Boolean(false) => Object::Boolean(true),
@@ -22,7 +22,7 @@ fn eval_bang_prefix_op_exp<'a>(obj: &Object) -> ObjectResult<'a> {
     Ok(result)
 }
 
-fn eval_infix_expression<'a>(op: &str, left: &Object, right: &Object) -> ObjectResult<'a> {
+fn eval_infix_expression<'a>(op: &str, left: &Object, right: &Object) -> ObjectResult {
     let result = match (left, right) {
         (&Object::Integer(l), &Object::Integer(r)) => {
             match op {
@@ -51,7 +51,7 @@ fn eval_infix_expression<'a>(op: &str, left: &Object, right: &Object) -> ObjectR
     Ok(result)
 }
 
-fn eval_minus_prefix_op_exp<'a>(obj: &Object) -> ObjectResult<'a> {
+fn eval_minus_prefix_op_exp<'a>(obj: &Object) -> ObjectResult {
     let result = match *obj {
         Object::Integer(int) => Object::Integer(-int),
         ref t => return Err(format!("unknown operator: -{}", t))
@@ -67,7 +67,7 @@ fn is_truthy(obj: &Object) -> bool {
 }
 
 impl<'a> Evaluator {
-    fn visit_expr(&mut self, expr: &ast::Expression, env: &mut Environment) -> ObjectResult<'a> {
+    fn visit_expr(&mut self, expr: &ast::Expression, env: &mut Environment) -> ObjectResult {
         use ast::Expression::*;
         match *expr {
             Integer(ref int) => Ok(Object::Integer(int.value)),
@@ -91,7 +91,7 @@ impl<'a> Evaluator {
         }
     }
 
-    fn visit_identifier(&mut self, expr: &ast::IdentifierExpression, env: &mut Environment) -> ObjectResult<'a> {
+    fn visit_identifier(&mut self, expr: &ast::IdentifierExpression, env: &mut Environment) -> ObjectResult {
         env.get(expr.value.clone()).cloned().ok_or(format!("unknown identifier: {}", expr.value.clone()))
     }
 
@@ -99,7 +99,7 @@ impl<'a> Evaluator {
         &mut self,
         ifexp: &ast::IfExpression,
         env: &mut Environment,
-    ) -> ObjectResult<'a> {
+    ) -> ObjectResult {
         let cond = self.visit_expr(&*ifexp.condition, env)?;
 
         if is_truthy(&cond) {
@@ -116,7 +116,7 @@ impl<'a> Evaluator {
         op: &str,
         right: &Object,
         env: &mut Environment,
-    ) -> ObjectResult<'a> {
+    ) -> ObjectResult {
         match op {
             "!" => eval_bang_prefix_op_exp(right),
             "-" => eval_minus_prefix_op_exp(right),
@@ -124,7 +124,7 @@ impl<'a> Evaluator {
         }
     }
 
-    fn visit_program(&mut self, n: &ast::Program) -> ObjectResult<'a> {
+    fn visit_program(&mut self, n: &ast::Program) -> ObjectResult {
         let mut env = Environment::new();
 
         let result = self.visit_statements(&n.statements, &mut env);
@@ -135,7 +135,7 @@ impl<'a> Evaluator {
         }
     }
 
-    fn visit_statements(&mut self, stmts: &Vec<ast::Node>, env: &mut Environment) -> ObjectResult<'a> {
+    fn visit_statements(&mut self, stmts: &Vec<ast::Node>, env: &mut Environment) -> ObjectResult {
 
         let mut result = Object::Null;
         for (i, stmt) in stmts.iter().enumerate() {
@@ -150,7 +150,7 @@ impl<'a> Evaluator {
         Ok(result)
     }
 
-    fn visit_let_statement(&mut self, stmt: &ast::LetStatement, env: &mut Environment) -> ObjectResult<'a> {
+    fn visit_let_statement(&mut self, stmt: &ast::LetStatement, env: &mut Environment) -> ObjectResult {
         let ident = stmt.name.value.to_owned();
         let value = self.visit_expr(&*stmt.value, env)?;
         env.set(ident, value);
@@ -161,11 +161,11 @@ impl<'a> Evaluator {
         &mut self,
         block: &ast::BlockStatement,
         env: &mut Environment,
-    ) -> ObjectResult<'a> {
+    ) -> ObjectResult {
         self.visit_statements(&block.statements, env)
     }
 
-    fn visit_statement(&mut self, stmt: &ast::Statement, env: &mut Environment) -> ObjectResult<'a> {
+    fn visit_statement(&mut self, stmt: &ast::Statement, env: &mut Environment) -> ObjectResult {
         use ast::Statement::*;
         match *stmt {
 
@@ -186,7 +186,7 @@ impl<'a> Evaluator {
     }
 }
 
-pub fn eval<'a, 'b>(node: &'a ast::Node) -> ObjectResult<'b> {
+pub fn eval<'a>(node: &'a ast::Node) -> ObjectResult {
     use ast::Node::*;
     let mut visitor = Evaluator {};
     match *node {
@@ -345,7 +345,7 @@ mod tests {
         }
     }
 
-    fn assert_error<'a>(result: ObjectResult<'a>, err: &str) {
+    fn assert_error<'a>(result: ObjectResult, err: &str) {
         match result {
             Ok(error) => assert!(false, "Expected error {}, got: {:?}", err, error),
             Err(error) => assert_eq!(err, error)
