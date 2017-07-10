@@ -1,8 +1,10 @@
 use std::collections::HashMap;
 use object::Object;
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct Environment<'a> {
     outer: Option<&'a Environment<'a>>,
-    env: HashMap<String, Object>,
+    env: HashMap<String, Object<'a>>,
 }
 
 impl <'a>Environment<'a> {
