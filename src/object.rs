@@ -4,15 +4,15 @@ use environment::Environment;
 use ast;
 
 #[derive(Debug, PartialEq, Clone)]
-pub enum Object<'a> {
+pub enum Object {
     Integer(i64),
     Boolean(bool),
-    Return(Rc<Object<'a>>),
-    Function(Vec<ast::IdentifierExpression>, Box<ast::Statement>, Rc<Environment<'a>>),
+    Return(Rc<Object>),
+    Function(Vec<ast::IdentifierExpression>, Box<ast::Statement>, Rc<Environment>),
     Null
 }
 
-impl <'a>fmt::Display for Object<'a> {
+impl fmt::Display for Object {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         use self::Object::*;
         let t = match *self {

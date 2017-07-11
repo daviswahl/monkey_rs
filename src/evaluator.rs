@@ -11,9 +11,9 @@ use std::rc;
 
 struct Evaluator {}
 
-type ObjectRcResult<'a> = Result<Rc<Object<'a>>, String>;
-type ObjectsResult<'a> = Result<Vec<Rc<Object<'a>>>, String>;
-type ObjectResult<'a> = Result<Object<'a>, String>;
+type ObjectRcResult<'a> = Result<Rc<Object>, String>;
+type ObjectsResult<'a> = Result<Vec<Rc<Object>>, String>;
+type ObjectResult<'a> = Result<Object, String>;
 
 fn eval_bang_prefix_op_exp<'a>(obj: &Object) -> ObjectResult<'a> {
     let result = match *obj {
@@ -70,9 +70,9 @@ fn is_truthy(obj: &Object) -> bool {
 
 fn extend_function_env<'a>(
     parameters: &Vec<ast::IdentifierExpression>,
-    env: Rc<Environment<'a>>,
-    args: Vec<Rc<Object<'a>>>,
-) -> Environment<'a> {
+    env: Rc<Environment>,
+    args: Vec<Rc<Object>>,
+) -> Environment {
     let mut extended = Environment::extend(&env);
     for (i, param) in parameters.iter().enumerate() {
        extended.set(param.value.clone(), args[i].clone())
@@ -83,7 +83,7 @@ fn extend_function_env<'a>(
 
 
 impl<'a> Evaluator {
-    fn visit_expr(&self, expr: &ast::Expression, env: &mut Environment<'a>) -> ObjectRcResult<'a> {
+    fn visit_expr(&self, expr: &ast::Expression, env: &mut Environment) -> ObjectRcResult<'a> {
         use ast::Expression::*;
         match *expr {
             Integer(ref int) => Ok(Rc::new(Object::Integer(int.value))),
@@ -113,7 +113,7 @@ impl<'a> Evaluator {
         }
     }
 
-    fn apply_function(&self, func: Rc<Object<'a>>, args: Vec<Rc<Object<'a>>>) -> ObjectRcResult<'a> {
+    fn apply_function(&self, func: Rc<Object>, args: Vec<Rc<Object>>) -> ObjectRcResult<'a> {
         match *func {
             Object::Function(ref parameters, ref body, ref func_env) => {
                 let mut env = extend_function_env(parameters, func_env.clone(), args);
@@ -125,7 +125,7 @@ impl<'a> Evaluator {
     fn visit_expressions(
         &self,
         exprs: &Vec<Box<ast::Expression>>,
-        env: &mut Environment<'a>,
+        env: &mut Environment,
     ) -> ObjectsResult<'a> {
         let mut results: Vec<Rc<Object>> = vec![];
         for expr in exprs.iter() {
@@ -138,7 +138,7 @@ impl<'a> Evaluator {
     fn visit_call_expression(
         &self,
         expr: &ast::CallExpression,
-        env: &mut Environment<'a>,
+        env: &mut Environment,
     ) -> ObjectRcResult<'a> {
         let function = self.visit_expr(&*expr.function, &mut env.clone())?;
         let args = self.visit_expressions(&expr.arguments, env)?;
@@ -148,7 +148,7 @@ impl<'a> Evaluator {
     fn visit_function_expression(
         &self,
         expr: &ast::FunctionLiteral,
-        env: &mut Environment<'a>,
+        env: &mut Environment,
     ) -> ObjectRcResult<'a> {
         let mut identifiers: Vec<ast::IdentifierExpression> = vec![];
         for param in expr.parameters.clone().into_iter() {
@@ -165,7 +165,7 @@ impl<'a> Evaluator {
     fn visit_identifier(
         &self,
         expr: &ast::IdentifierExpression,
-        env: &mut Environment<'a>,
+        env: &mut Environment,
     ) -> ObjectRcResult<'a> {
         env.get(expr.value.clone()).ok_or(format!(
             "unknown identifier: {}",
@@ -176,7 +176,7 @@ impl<'a> Evaluator {
     fn visit_cond_expression(
         &self,
         ifexp: &ast::IfExpression,
-        env: &mut Environment<'a>,
+        env: &mut Environment,
     ) -> ObjectRcResult<'a> {
         let cond = self.visit_expr(&*ifexp.condition, env)?;
         if is_truthy(&cond) {
@@ -192,7 +192,7 @@ impl<'a> Evaluator {
         &self,
         op: &str,
         right: &Object,
-        env: &mut Environment<'a>,
+        env: &mut Environment,
     ) -> ObjectRcResult<'a> {
         let result = match op {
             "!" => eval_bang_prefix_op_exp(right),
@@ -202,7 +202,7 @@ impl<'a> Evaluator {
         Ok(Rc::new(result))
     }
 
-    fn visit_program(&self, n: &ast::Program, env: &mut Environment<'a>) -> ObjectRcResult<'a> {
+    fn visit_program(&self, n: &ast::Program, env: &mut Environment) -> ObjectRcResult<'a> {
         let result = self.visit_statements(&n.statements, env)?;
         if let Object::Return(ref ret) = *result {
             Ok(ret.clone())
@@ -214,7 +214,7 @@ impl<'a> Evaluator {
     fn visit_statements(
         &self,
         stmts: &Vec<ast::Node>,
-        env: &mut Environment<'a>,
+        env: &mut Environment,
     ) -> ObjectRcResult<'a> {
         let mut result = Rc::new(Object::Null);
         for stmt in stmts.iter() {
@@ -232,7 +232,7 @@ impl<'a> Evaluator {
     fn visit_let_statement(
         &self,
         stmt: &ast::LetStatement,
-        env: &mut Environment<'a>,
+        env: &mut Environment,
     ) -> ObjectRcResult<'a> {
         let ident = stmt.name.value.to_owned();
         let value = self.visit_expr(&*stmt.value, env)?;
@@ -243,7 +243,7 @@ impl<'a> Evaluator {
     fn visit_block_statement(
         &self,
         block: &ast::BlockStatement,
-        env: &mut Environment<'a>,
+        env: &mut Environment,
     ) -> ObjectRcResult<'a> {
         self.visit_statements(&block.statements, env)
     }
@@ -251,7 +251,7 @@ impl<'a> Evaluator {
     fn visit_statement(
         &self,
         stmt: &ast::Statement,
-        env: &mut Environment<'a>,
+        env: &mut Environment,
     ) -> ObjectRcResult<'a> {
         use ast::Statement::*;
         match *stmt {
@@ -270,7 +270,7 @@ impl<'a> Evaluator {
     }
 }
 
-pub fn eval<'a>(node: &ast::Node, env: &'a mut Environment<'a>) -> ObjectRcResult<'a> {
+pub fn eval<'a>(node: &ast::Node, env: &'a mut Environment) -> ObjectRcResult<'a> {
     use ast::Node::*;
     let visitor = Evaluator {};
     match *node {
@@ -508,7 +508,7 @@ addTwo(2);";
         }
     }
 
-    fn assert_eval<'a>(s: &str, env: &'a mut Environment<'a>) -> Rc<object::Object<'a>> {
+    fn assert_eval<'a>(s: &str, env: &'a mut Environment) -> Rc<object::Object> {
         let node = parser::parse(s);
         match eval(&node, env) {
             Ok(e) => e.clone(),

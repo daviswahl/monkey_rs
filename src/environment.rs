@@ -4,37 +4,34 @@ use std::rc::Rc;
 use std::marker::PhantomData;
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct Environment<'a> {
-    outer: Option<Rc<Environment<'a>>>,
-    env: HashMap<String, Rc<Object<'a>>>,
-    _phantom: PhantomData<&'a ()>,
+pub struct Environment {
+    outer: Option<Rc<Environment>>,
+    env: HashMap<String, Rc<Object>>,
 }
 
 
-impl<'a> Environment<'a> {
-    pub fn new() -> Environment<'a> {
+impl Environment {
+    pub fn new() -> Environment {
         Environment {
             outer: None,
             env: HashMap::new(),
-            _phantom: PhantomData,
         }
     }
 
-    pub fn get(&self, ident: String) -> Option<Rc<Object<'a>>> {
+    pub fn get(&self, ident: String) -> Option<Rc<Object>> {
         self.env.get(&ident).map(|e| e.clone()).or(
             self.outer.clone().and_then(|e| e.get(ident)),
         )
     }
 
-    pub fn set(&mut self, ident: String, obj: Rc<Object<'a>>) {
+    pub fn set(&mut self, ident: String, obj: Rc<Object>) {
         self.env.insert(ident, obj.clone());
     }
 
-    pub fn extend(env: &Rc<Environment<'a>>) -> Environment<'a> {
+    pub fn extend(env: &Rc<Environment>) -> Environment {
         Environment {
             outer: Some(env.clone()),
             env: HashMap::new(),
-            _phantom: PhantomData,
         }
     }
 }
