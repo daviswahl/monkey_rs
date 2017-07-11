@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use object::Object;
 use std::rc::Rc;
-use std::marker::PhantomData;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Environment {
