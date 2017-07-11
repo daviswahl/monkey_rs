@@ -12,7 +12,8 @@ mod environment;
 
 pub fn eval(s: &str) {
     let p = parse(s);
-    evaluator::eval(&p);
+    let mut env = environment::Environment::new();
+    evaluator::eval(&p, &mut env);
 }
 pub fn parse(s: &str) -> ast::Node {
     parser::parse(s)

@@ -1,9 +1,11 @@
 use std::collections::HashMap;
 use object::Object;
 use std::rc::Rc;
+
+#[derive(Debug, PartialEq, Clone)]
 pub struct Environment<'a> {
     outer: Option<&'a Environment<'a>>,
-    env: HashMap<String, Rc<Object>>,
+    env: HashMap<String, Rc<Object<'a>>>,
 }
 
 impl<'a> Environment<'a> {
@@ -14,13 +16,13 @@ impl<'a> Environment<'a> {
         }
     }
 
-    pub fn get(&self, ident: String) -> Option<Rc<Object>> {
+    pub fn get(&self, ident: String) -> Option<Rc<Object<'a>>> {
         self.env.get(&ident).map(|e| e.clone()).or(
             self.outer.and_then(|e| e.get(ident)),
         )
     }
 
-    pub fn set(&mut self, ident: String, obj: Rc<Object>) {
+    pub fn set(&mut self, ident: String, obj: Rc<Object<'a>>) {
         self.env.insert(ident, obj.clone());
     }
 

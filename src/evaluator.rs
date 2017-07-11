@@ -11,9 +11,9 @@ use std::rc;
 
 struct Evaluator {}
 
-type ObjectResult = Result<Rc<object::Object>, String>;
+type ObjectResult<'a> = Result<Rc<object::Object<'a>>, String>;
 
-fn eval_bang_prefix_op_exp<'a>(obj: &Object) -> ObjectResult {
+fn eval_bang_prefix_op_exp<'a>(obj: &Object) -> ObjectResult<'a> {
     let result = match *obj {
         Object::Boolean(true) => Object::Boolean(false),
         Object::Boolean(false) => Object::Boolean(true),
@@ -23,7 +23,7 @@ fn eval_bang_prefix_op_exp<'a>(obj: &Object) -> ObjectResult {
     Ok(Rc::new(result))
 }
 
-fn eval_infix_expression<'a>(op: &str, left: &Object, right: &Object) -> ObjectResult {
+fn eval_infix_expression<'a>(op: &str, left: &Object, right: &Object) -> ObjectResult<'a> {
     let result = match (left, right) {
         (&Object::Integer(l), &Object::Integer(r)) => {
             match op {
@@ -54,7 +54,7 @@ fn eval_infix_expression<'a>(op: &str, left: &Object, right: &Object) -> ObjectR
     Ok(Rc::new(result))
 }
 
-fn eval_minus_prefix_op_exp<'a>(obj: &Object) -> ObjectResult {
+fn eval_minus_prefix_op_exp<'a>(obj: &Object) -> ObjectResult<'a> {
     let result = match *obj {
         Object::Integer(int) => Object::Integer(-int),
         ref t => return Err(format!("unknown operator: -{}", t))
@@ -70,7 +70,7 @@ fn is_truthy(obj: &Object) -> bool {
 }
 
 impl<'a> Evaluator {
-    fn visit_expr(&self, expr: &ast::Expression, env: &mut Environment) -> ObjectResult {
+    fn visit_expr(&self, expr: &ast::Expression, env: &mut Environment<'a>) -> ObjectResult<'a> {
         use ast::Expression::*;
         match *expr {
             Integer(ref int) => Ok(Rc::new(Object::Integer(int.value))),
@@ -94,15 +94,15 @@ impl<'a> Evaluator {
         }
     }
 
-    fn visit_identifier(&self, expr: &ast::IdentifierExpression, env: &mut Environment) -> ObjectResult {
+    fn visit_identifier(&self, expr: &ast::IdentifierExpression, env: &mut Environment<'a>) -> ObjectResult<'a> {
         env.get(expr.value.clone()).ok_or(format!("unknown identifier: {}", expr.value.clone()))
     }
 
     fn visit_cond_expression(
         &self,
         ifexp: &ast::IfExpression,
-        env: &mut Environment,
-    ) -> ObjectResult {
+        env: &mut Environment<'a>,
+    ) -> ObjectResult<'a> {
         let cond = self.visit_expr(&*ifexp.condition, env)?;
         if is_truthy(&cond) {
             self.visit_statement(&*ifexp.consequence, env)
@@ -117,8 +117,8 @@ impl<'a> Evaluator {
         &self,
         op: &str,
         right: &Object,
-        env: &mut Environment,
-    ) -> ObjectResult {
+        env: &mut Environment<'a>,
+    ) -> ObjectResult<'a> {
         match op {
             "!" => eval_bang_prefix_op_exp(right),
             "-" => eval_minus_prefix_op_exp(right),
@@ -126,9 +126,8 @@ impl<'a> Evaluator {
         }
     }
 
-    fn visit_program(&self, n: &ast::Program) -> ObjectResult {
-        let mut env = Environment::new();
-        let result = self.visit_statements(&n.statements, &mut env)?;
+    fn visit_program(&self, n: &ast::Program, env: &mut Environment<'a>) -> ObjectResult<'a> {
+        let result = self.visit_statements(&n.statements, env)?;
         if let Object::Return(ref ret) = *result {
             Ok(ret.clone())
         } else {
@@ -136,7 +135,7 @@ impl<'a> Evaluator {
         }
     }
 
-    fn visit_statements(&self, stmts: &Vec<ast::Node>, env: &mut Environment) -> ObjectResult {
+    fn visit_statements(&self, stmts: &Vec<ast::Node>, env: &mut Environment<'a>) -> ObjectResult<'a> {
         let mut result = Rc::new(Object::Null);
         for stmt in stmts.iter() {
             if let &ast::Node::Statement(ref s) = stmt {
@@ -150,7 +149,7 @@ impl<'a> Evaluator {
         Ok(result)
     }
 
-    fn visit_let_statement(&self, stmt: &ast::LetStatement, env: &mut Environment) -> ObjectResult {
+    fn visit_let_statement(&self, stmt: &ast::LetStatement, env: &mut Environment<'a>) -> ObjectResult<'a> {
         let ident = stmt.name.value.to_owned();
         let value = self.visit_expr(&*stmt.value, env)?;
         env.set(ident, value);
@@ -160,12 +159,12 @@ impl<'a> Evaluator {
     fn visit_block_statement(
         &self,
         block: &ast::BlockStatement,
-        env: &mut Environment,
-    ) -> ObjectResult {
+        env: &mut Environment<'a>,
+    ) -> ObjectResult<'a> {
         self.visit_statements(&block.statements, env)
     }
 
-    fn visit_statement(&self, stmt: &ast::Statement, env: &mut Environment) -> ObjectResult {
+    fn visit_statement(&self, stmt: &ast::Statement, env: &mut Environment<'a>) -> ObjectResult<'a> {
         use ast::Statement::*;
         match *stmt {
 
@@ -185,11 +184,11 @@ impl<'a> Evaluator {
     }
 }
 
-pub fn eval<'a>(node: &'a ast::Node) -> ObjectResult {
+pub fn eval<'a>(node: &ast::Node, env: &'a mut Environment<'a>) -> ObjectResult<'a> {
     use ast::Node::*;
     let mut visitor = Evaluator {};
     match *node {
-        Program(ref program) => visitor.visit_program(program),
+        Program(ref program) => visitor.visit_program(program, env),
         _ => Err(String::from("Expected Program")),
     }
 }
@@ -207,8 +206,9 @@ mod tests {
         ];
 
         for t in tests {
-            let evaluated = assert_eval(t.0);
-            assert_integer_obj(evaluated, t.1);
+            let mut env = Environment::new();
+            let evaluated = assert_eval(t.0, &mut env);
+            assert_integer_obj(evaluated.as_ref(), t.1);
         }
     }
 
@@ -225,7 +225,9 @@ mod tests {
         ];
 
         for t in tests {
-            let evaluated = eval(&parser::parse(t.0));
+            let mut env = Environment::new();
+            let node = parser::parse(t.0);
+            let evaluated = eval(&node, &mut env);
             assert_error(evaluated, t.1);
         }
     }
@@ -241,8 +243,9 @@ mod tests {
         ];
 
         for t in tests {
-            let evaluated = assert_eval(t.0);
-            assert_integer_obj(evaluated, t.1);
+            let mut env = Environment::new();
+            let evaluated = assert_eval(t.0, &mut env);
+            assert_integer_obj(evaluated.as_ref(), t.1);
         }
     }
 
@@ -259,8 +262,9 @@ mod tests {
         ];
 
         for t in tests {
-            let evaluated = assert_eval(t.0);
-            assert_object(evaluated, t.1);
+            let mut env = Environment::new();
+            let evaluated = assert_eval(t.0, &mut env);
+            assert_object(evaluated.as_ref(), &t.1);
         }
     }
 
@@ -283,8 +287,9 @@ mod tests {
         ];
 
         for test in tests {
-            let evaluated = assert_eval(test.0);
-            assert_integer_obj(evaluated, test.1);
+            let mut env = Environment::new();
+            let evaluated = assert_eval(test.0, &mut env);
+            assert_integer_obj(evaluated.as_ref(), test.1);
         }
     }
 
@@ -314,8 +319,9 @@ mod tests {
         ];
 
         for t in tests {
-            let evaluated = assert_eval(t.0);
-            assert_bool(evaluated, t.1);
+            let mut env = Environment::new();
+            let evaluated = assert_eval(t.0, &mut env);
+            assert_bool(evaluated.as_ref(), t.1);
         }
     }
 
@@ -330,48 +336,49 @@ mod tests {
             ("!!5", true),
         ];
         for t in tests {
-            let evaluated = assert_eval(t.0);
-            assert_bool(evaluated, t.1)
+            let mut env = Environment::new();
+            let evaluated = assert_eval(t.0, &mut env);
+            assert_bool(evaluated.as_ref(), t.1)
         }
     }
 
-    fn assert_object(obj: Object, expect: Object) {
+    fn assert_object(obj: &Object, expect: &Object) {
         match (obj, expect) {
-            (Object::Boolean(l), Object::Boolean(r)) => assert_eq!(l, r),
-            (Object::Integer(l), Object::Integer(r)) => assert_eq!(l, r),
-            (Object::Null, Object::Null) => assert!(true),
+            (&Object::Boolean(l), &Object::Boolean(r)) => assert_eq!(l, r),
+            (&Object::Integer(l), &Object::Integer(r)) => assert_eq!(l, r),
+            (&Object::Null, &Object::Null) => assert!(true),
             _ => assert!(false),
         }
     }
 
-    fn assert_error<'a>(result: ObjectResult, err: &str) {
+    fn assert_error<'a>(result: ObjectResult<'a>, err: &str) {
         match result {
             Ok(error) => assert!(false, "Expected error {}, got: {:?}", err, error),
             Err(error) => assert_eq!(err, error)
         }
     }
 
-    fn assert_bool(obj: object::Object, b: bool) {
+    fn assert_bool(obj: &object::Object, b: bool) {
         match obj {
-            object::Object::Boolean(o) => assert_eq!(o, b),
+            &object::Object::Boolean(o) => assert_eq!(o, b),
             x => assert!(false, format!("Expected boolean object, got {:?}", x)),
         }
     }
 
-    fn assert_eval(s: &str) -> object::Object {
-        println!("evaluating: {}", s);
-        match eval(&parser::parse(s)) {
-            Ok(e) => Rc::try_unwrap(e).unwrap(),
+    fn assert_eval<'a>(s: &str, env: &'a mut Environment<'a>) -> Rc<object::Object<'a>> {
+        let node = parser::parse(s);
+        match eval(&node, env) {
+            Ok(e) => e.clone(),
             Err(e) => {
                 assert!(false, format!("Expected program, got {:?}", e));
-                object::Object::Null
+                Rc::new(object::Object::Null)
             }
         }
     }
 
-    fn assert_integer_obj(obj: object::Object, expected: i64) {
+    fn assert_integer_obj(obj: &object::Object, expected: i64) {
         match obj {
-            object::Object::Integer(integer) => assert_eq!(integer, expected),
+            &object::Object::Integer(integer) => assert_eq!(integer, expected),
             x => assert!(false, format!("Expected integer object, got {:?}", x)),
         }
     }
