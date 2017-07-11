@@ -68,6 +68,20 @@ fn is_truthy(obj: &Object) -> bool {
     }
 }
 
+fn extend_function_env<'a>(
+    parameters: &Vec<ast::IdentifierExpression>,
+    env: Rc<Environment<'a>>,
+    args: Vec<Rc<Object<'a>>>,
+) -> Environment<'a> {
+    let mut extended = Environment::extend(&env);
+    for (i, param) in parameters.iter().enumerate() {
+       extended.set(param.value.clone(), args[i].clone())
+    }
+    extended
+}
+
+
+
 impl<'a> Evaluator {
     fn visit_expr(&self, expr: &ast::Expression, env: &mut Environment<'a>) -> ObjectRcResult<'a> {
         use ast::Expression::*;
@@ -99,6 +113,15 @@ impl<'a> Evaluator {
         }
     }
 
+    fn apply_function(&self, func: Rc<Object<'a>>, args: Vec<Rc<Object<'a>>>) -> ObjectRcResult<'a> {
+        match *func {
+            Object::Function(ref parameters, ref body, ref func_env) => {
+                let mut env = extend_function_env(parameters, func_env.clone(), args);
+                self.visit_statement(body, &mut env)
+            }
+            ref x => Err(format!("expected function object, got {}", x)),
+    }
+}
     fn visit_expressions(
         &self,
         exprs: &Vec<Box<ast::Expression>>,
@@ -119,7 +142,7 @@ impl<'a> Evaluator {
     ) -> ObjectRcResult<'a> {
         let function = self.visit_expr(&*expr.function, &mut env.clone())?;
         let args = self.visit_expressions(&expr.arguments, env)?;
-        Err(format!("Unimplemented: {:?}, {:?}", function, args))
+        self.apply_function(function, args)
     }
 
     fn visit_function_expression(
@@ -252,12 +275,25 @@ pub fn eval<'a>(node: &ast::Node, env: &'a mut Environment<'a>) -> ObjectRcResul
     let visitor = Evaluator {};
     match *node {
         Program(ref program) => visitor.visit_program(program, env),
-        ref x => Err(format!("expected program, got {}", x))
+        ref x => Err(format!("expected program, got {}", x)),
     }
 }
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_closures() {
+        let input = "
+let newAdder = fn(x) {
+    fn(y) { x + y };
+};
+let addTwo = newAdder(2);
+addTwo(2);";
+
+        let mut env = Environment::new();
+        assert_integer_obj(assert_eval(input, &mut env).as_ref(), 4)
+    }
 
     #[test]
     fn test_function_application() {
