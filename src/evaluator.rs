@@ -36,28 +36,25 @@ fn eval_infix_expression<'a>(op: &str, left: &Object, right: &Object) -> ObjectR
                 "<" => Object::Boolean(l < r),
                 "==" => Object::Boolean(l == r),
                 "!=" => Object::Boolean(l != r),
-                x => {
-                    return Err(format!("fell through to {:?}", x))
-                }
+                x => return Err(format!("fell through to {:?}", x)),
             }
         }
         (&Object::Boolean(l), &Object::Boolean(r)) => {
             match op {
                 "==" => Object::Boolean(l == r),
                 "!=" => Object::Boolean(l != r),
-                x => return Err(format!("unknown operator: BOOLEAN {} BOOLEAN", x))
+                x => return Err(format!("unknown operator: BOOLEAN {} BOOLEAN", x)),
             }
         }
-        (l, r) => return Err(format!("type mismatch: {} {} {}", l, op, r))
+        (l, r) => return Err(format!("type mismatch: {} {} {}", l, op, r)),
     };
-
     Ok(Rc::new(result))
 }
 
 fn eval_minus_prefix_op_exp<'a>(obj: &Object) -> ObjectResult<'a> {
     let result = match *obj {
         Object::Integer(int) => Object::Integer(-int),
-        ref t => return Err(format!("unknown operator: -{}", t))
+        ref t => return Err(format!("unknown operator: -{}", t)),
     };
     Ok(Rc::new(result))
 }
@@ -65,7 +62,7 @@ fn eval_minus_prefix_op_exp<'a>(obj: &Object) -> ObjectResult<'a> {
 fn is_truthy(obj: &Object) -> bool {
     match obj {
         &Object::Boolean(true) => true,
-        _ => false
+        _ => false,
     }
 }
 
@@ -90,12 +87,38 @@ impl<'a> Evaluator {
             If(ref ifexp) => self.visit_cond_expression(ifexp, env),
 
             Identifier(ref ident) => self.visit_identifier(ident, env),
+
+            Function(ref exp) => self.visit_function_expression(exp, env),
             ref expr => Err(format!("Unimplemented: {}", expr)),
         }
     }
 
-    fn visit_identifier(&self, expr: &ast::IdentifierExpression, env: &mut Environment<'a>) -> ObjectResult<'a> {
-        env.get(expr.value.clone()).ok_or(format!("unknown identifier: {}", expr.value.clone()))
+    fn visit_function_expression(
+        &self,
+        expr: &ast::FunctionLiteral,
+        env: &mut Environment<'a>,
+    ) -> ObjectResult<'a> {
+        let mut identifiers: Vec<ast::IdentifierExpression> = vec![];
+        for param in expr.parameters.clone().into_iter() {
+            match *param {
+                ast::Expression::Identifier(exp) => identifiers.push(exp),
+                x => return Err(format!("Expected identifier exp, got {}", x)),
+            }
+        }
+
+        let function = Object::Function(identifiers, expr.body.clone(), Rc::new(env.clone()));
+        Ok(Rc::new(function))
+    }
+
+    fn visit_identifier(
+        &self,
+        expr: &ast::IdentifierExpression,
+        env: &mut Environment<'a>,
+    ) -> ObjectResult<'a> {
+        env.get(expr.value.clone()).ok_or(format!(
+            "unknown identifier: {}",
+            expr.value.clone()
+        ))
     }
 
     fn visit_cond_expression(
@@ -135,13 +158,17 @@ impl<'a> Evaluator {
         }
     }
 
-    fn visit_statements(&self, stmts: &Vec<ast::Node>, env: &mut Environment<'a>) -> ObjectResult<'a> {
+    fn visit_statements(
+        &self,
+        stmts: &Vec<ast::Node>,
+        env: &mut Environment<'a>,
+    ) -> ObjectResult<'a> {
         let mut result = Rc::new(Object::Null);
         for stmt in stmts.iter() {
             if let &ast::Node::Statement(ref s) = stmt {
                 result = self.visit_statement(s, env)?;
                 if let Object::Return(_) = *result {
-                    return Ok(result)
+                    return Ok(result);
                 }
             }
         }
@@ -149,7 +176,11 @@ impl<'a> Evaluator {
         Ok(result)
     }
 
-    fn visit_let_statement(&self, stmt: &ast::LetStatement, env: &mut Environment<'a>) -> ObjectResult<'a> {
+    fn visit_let_statement(
+        &self,
+        stmt: &ast::LetStatement,
+        env: &mut Environment<'a>,
+    ) -> ObjectResult<'a> {
         let ident = stmt.name.value.to_owned();
         let value = self.visit_expr(&*stmt.value, env)?;
         env.set(ident, value);
@@ -164,7 +195,11 @@ impl<'a> Evaluator {
         self.visit_statements(&block.statements, env)
     }
 
-    fn visit_statement(&self, stmt: &ast::Statement, env: &mut Environment<'a>) -> ObjectResult<'a> {
+    fn visit_statement(
+        &self,
+        stmt: &ast::Statement,
+        env: &mut Environment<'a>,
+    ) -> ObjectResult<'a> {
         use ast::Statement::*;
         match *stmt {
 
@@ -175,11 +210,9 @@ impl<'a> Evaluator {
             Return(ref ret) => {
                 let result = self.visit_expr(&ret.value, env)?;
                 Ok(Rc::new(Object::Return(result.clone())))
-            },
+            }
 
-            Let(ref stmt) => {
-                self.visit_let_statement(stmt, env)
-            },
+            Let(ref stmt) => self.visit_let_statement(stmt, env),
         }
     }
 }
@@ -195,6 +228,32 @@ pub fn eval<'a>(node: &ast::Node, env: &'a mut Environment<'a>) -> ObjectResult<
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_function_application() {
+        let tests = vec![
+            ("let identity = fn(x) { x; }; identity(5);", 5),
+            ("let identity = fn(x) { return x; }; identity(5);", 5),
+            ("let double = fn(x) { x * 2; }; double(5);", 10),
+            ("let add = fn(x, y) { x + y; }; add(5, 5);", 10),
+            ("let add = fn(x, y) { x + y; }; add(5 + 5, add(5, 5));", 20),
+            ("fn(x) { x; }(5)", 5),
+        ];
+
+        for t in tests {
+            let mut env = Environment::new();
+            let evaluated = assert_eval(s, &mut env);
+            assert_integer_obj(evaluated, t.1)
+        }
+
+    }
+    #[test]
+    fn test_function_object() {
+        let input = "fn(x) { x + 2; };";
+        let mut env = Environment::new();
+        let evaluated = assert_eval(input, &mut env);
+        let func = assert_function_obj(evaluated.as_ref(), vec!["x"], "(x + 2)");
+    }
 
     #[test]
     fn test_let() {
@@ -215,13 +274,19 @@ mod tests {
     #[test]
     fn test_errors() {
         let tests = vec![
-            ( "5 + true;", "type mismatch: INTEGER + BOOLEAN"),
-            ( "5 + true; 5", "type mismatch: INTEGER + BOOLEAN"),
-            ( "-true", "unknown operator: -BOOLEAN"),
+            ("5 + true;", "type mismatch: INTEGER + BOOLEAN"),
+            ("5 + true; 5", "type mismatch: INTEGER + BOOLEAN"),
+            ("-true", "unknown operator: -BOOLEAN"),
             ("true + false;", "unknown operator: BOOLEAN + BOOLEAN"),
             ("5; true + false; 5", "unknown operator: BOOLEAN + BOOLEAN"),
-            ("if (10 > 1) { true + false; }", "unknown operator: BOOLEAN + BOOLEAN"),
-            ("if (10 > 1) { if (10 > 1) { return true + false; }; return 1; }", "unknown operator: BOOLEAN + BOOLEAN")
+            (
+                "if (10 > 1) { true + false; }",
+                "unknown operator: BOOLEAN + BOOLEAN"
+            ),
+            (
+                "if (10 > 1) { if (10 > 1) { return true + false; }; return 1; }",
+                "unknown operator: BOOLEAN + BOOLEAN"
+            ),
         ];
 
         for t in tests {
@@ -342,6 +407,18 @@ mod tests {
         }
     }
 
+    fn assert_function_obj(obj: &Object, expect_params: Vec<&str>, expect_body: &str) {
+        match obj {
+            &Object::Function(ref params, ref body, _) => {
+                for (i, param) in params.iter().enumerate() {
+                    assert_eq!(param.value.as_str(), expect_params[i]);
+                    assert_eq!(format!("{}", body), expect_body)
+                }
+            }
+            x => assert!(false, "Expected function object, got {:?}", x),
+        }
+    }
+
     fn assert_object(obj: &Object, expect: &Object) {
         match (obj, expect) {
             (&Object::Boolean(l), &Object::Boolean(r)) => assert_eq!(l, r),
@@ -354,7 +431,7 @@ mod tests {
     fn assert_error<'a>(result: ObjectResult<'a>, err: &str) {
         match result {
             Ok(error) => assert!(false, "Expected error {}, got: {:?}", err, error),
-            Err(error) => assert_eq!(err, error)
+            Err(error) => assert_eq!(err, error),
         }
     }
 

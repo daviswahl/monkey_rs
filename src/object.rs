@@ -8,7 +8,7 @@ pub enum Object<'a> {
     Integer(i64),
     Boolean(bool),
     Return(Rc<Object<'a>>),
-    Function(Vec<Box<ast::IdentifierExpression>>, Box<ast::BlockStatement>, Rc<Environment<'a>>),
+    Function(Vec<ast::IdentifierExpression>, Box<ast::Statement>, Rc<Environment<'a>>),
     Null
 }
 
