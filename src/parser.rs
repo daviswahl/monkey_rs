@@ -143,7 +143,7 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_call_arguments(&mut self) -> Vec<ast::Expression> {
-        if self.peek_token_is(token::RPAREN) {
+        if self.peek_token_is(token::RPAREN) && self.cur_token_is(token::LPAREN) {
             self.next_token();
             return vec![];
         }
@@ -878,6 +878,7 @@ foobar;
         let input = "add(1, 2 * 3, 4 + 5);";
         let mut parser = make_parser(input);
         let prog = parser.parse();
+
         test_no_errors(&parser);
 
         assert_program(&prog, |program| {
@@ -895,6 +896,22 @@ foobar;
                         assert_integer(&*infix.right, 5);
                     });
 
+                })
+            })
+        })
+    }
+    #[test]
+    fn test_call_expression_2() {
+        let input = "add(1);";
+        let mut parser = make_parser(input);
+        let prog = parser.parse();
+
+        test_no_errors(&parser);
+
+        assert_program(&prog, |program| {
+            assert_statement_expression(&program.statements[0], |exp| {
+                assert_call(exp, |callexp| {
+                    assert_integer(&callexp.arguments[0], 1);
                 })
             })
         })

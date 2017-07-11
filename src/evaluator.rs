@@ -12,6 +12,7 @@ use std::rc;
 struct Evaluator {}
 
 type ObjectResult<'a> = Result<Rc<object::Object<'a>>, String>;
+type ObjectsResult<'a> = Result<Vec<Rc<object::Object<'a>>>, String>;
 
 fn eval_bang_prefix_op_exp<'a>(obj: &Object) -> ObjectResult<'a> {
     let result = match *obj {
@@ -89,8 +90,36 @@ impl<'a> Evaluator {
             Identifier(ref ident) => self.visit_identifier(ident, env),
 
             Function(ref exp) => self.visit_function_expression(exp, env),
-            ref expr => Err(format!("Unimplemented: {}", expr)),
+
+            Call(ref exp) => self.visit_call_expression(exp, env),
+
+            ref expr => Err(format!("Unimplemented: {:?}", expr)),
         }
+    }
+
+    fn visit_expressions(
+        &self,
+        exprs: &Vec<Box<ast::Expression>>,
+        env: &mut Environment<'a>,
+    ) -> ObjectsResult<'a> {
+        let mut results: Vec<Rc<Object>> = vec![];
+        println!("exprs: {:?}", exprs);
+        for expr in exprs.iter() {
+            let r = self.visit_expr(expr.as_ref(), env)?;
+            results.push(r);
+        }
+        Ok(results)
+    }
+
+    fn visit_call_expression(
+        &self,
+        expr: &ast::CallExpression,
+        env: &mut Environment<'a>,
+    ) -> ObjectResult<'a> {
+        let function = self.visit_expr(&*expr.function, &mut env.clone())?;
+        let args = self.visit_expressions(&expr.arguments, env)?;
+
+        Err(format!("Unimplemented: {:?}, {:?}", function, args))
     }
 
     fn visit_function_expression(
@@ -219,7 +248,7 @@ impl<'a> Evaluator {
 
 pub fn eval<'a>(node: &ast::Node, env: &'a mut Environment<'a>) -> ObjectResult<'a> {
     use ast::Node::*;
-    let mut visitor = Evaluator {};
+    let visitor = Evaluator {};
     match *node {
         Program(ref program) => visitor.visit_program(program, env),
         _ => Err(String::from("Expected Program")),
@@ -242,8 +271,9 @@ mod tests {
 
         for t in tests {
             let mut env = Environment::new();
-            let evaluated = assert_eval(s, &mut env);
-            assert_integer_obj(evaluated, t.1)
+            let evaluated = assert_eval(t.0, &mut env);
+            println!("evaluated: {:?}", evaluated);
+            assert_integer_obj(evaluated.as_ref(), t.1)
         }
 
     }
@@ -444,6 +474,7 @@ mod tests {
 
     fn assert_eval<'a>(s: &str, env: &'a mut Environment<'a>) -> Rc<object::Object<'a>> {
         let node = parser::parse(s);
+        println!("node: {:?}", node);
         match eval(&node, env) {
             Ok(e) => e.clone(),
             Err(e) => {
