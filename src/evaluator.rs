@@ -128,20 +128,22 @@ impl<'a> Evaluator {
 
     fn visit_program(&self, n: &ast::Program) -> ObjectResult {
         let mut env = Environment::new();
-
-        self.visit_statements(&n.statements, &mut env)
+        let result = self.visit_statements(&n.statements, &mut env)?;
+        if let Object::Return(ref ret) = *result {
+            Ok(ret.clone())
+        } else {
+            Ok(result.clone())
+        }
     }
 
     fn visit_statements(&self, stmts: &Vec<ast::Node>, env: &mut Environment) -> ObjectResult {
-
         let mut result = Rc::new(Object::Null);
         for stmt in stmts.iter() {
             if let &ast::Node::Statement(ref s) = stmt {
-                let tmp = self.visit_statement(s, env)?;
-                if let Object::Return(ref f) = *tmp {
-                    return Ok(f.clone())
+                result = self.visit_statement(s, env)?;
+                if let Object::Return(_) = *result {
+                    return Ok(result)
                 }
-                result = tmp;
             }
         }
 
@@ -173,8 +175,7 @@ impl<'a> Evaluator {
 
             Return(ref ret) => {
                 let result = self.visit_expr(&ret.value, env)?;
-                let ret = Rc::new(Object::Return(result.clone()));
-                Ok(ret)
+                Ok(Rc::new(Object::Return(result.clone())))
             },
 
             Let(ref stmt) => {
