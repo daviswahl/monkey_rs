@@ -1,4 +1,3 @@
-pub mod visitor;
 use token;
 use std::fmt;
 

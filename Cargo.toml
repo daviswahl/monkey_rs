@@ -3,6 +3,11 @@ name = "interpreter"
 version = "0.1.0"
 authors = ["Davis Wahl <dwahl@signalpath.com>"]
 
+[lib]
+name = "monkey_parser"
+path = "src/lib.rs"
+
+
 [dependencies]
 clippy = {version = "*", optional = true}
 

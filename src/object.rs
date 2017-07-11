@@ -16,11 +16,14 @@ impl fmt::Display for Object {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         use self::Object::*;
         let t = match *self {
-            Integer(_) => "INTEGER",
-            Boolean(_) => "BOOLEAN",
-            Return(_) => "RETURN",
-            Function(..) => "FUNCTION",
-            Null => "NULL",
+            Integer(i) => i.to_string(),
+            Boolean(b) => b.to_string(),
+            Return(ref r) =>  r.to_string(),
+            Function(ref params, ref body, _) => {
+                let params = params.iter().map(|p| format!("{}", p)).collect::<Vec<String>>().join(",");
+                format!("fn ({}) {{ {} }}", params, body)
+            },
+            Null => String::from("NULL")
         };
         write!(f, "{}", t)
     }

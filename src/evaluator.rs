@@ -1,6 +1,5 @@
 use ast;
 use ast::AstNode;
-use ast::visitor::Visitor;
 use object;
 use object::Object;
 use parser;
@@ -72,15 +71,19 @@ fn extend_function_env(
     parameters: &Vec<ast::IdentifierExpression>,
     env: Rc<Environment>,
     args: Vec<Rc<Object>>,
-) -> Environment {
+) -> Result<Environment, String> {
     let mut extended = Environment::extend(&env);
+
+    if parameters.len() != args.len() {
+        return Err(format!("function expected {} arguments, got {}", parameters.len(), args.len()))
+    }
+
     for (i, param) in parameters.iter().enumerate() {
        extended.set(param.value.clone(), args[i].clone())
     }
-    extended
+
+    Ok(extended)
 }
-
-
 
 impl Evaluator {
     fn visit_expr(&self, expr: &ast::Expression, env: &mut Environment) -> ObjectRcResult {
@@ -116,7 +119,7 @@ impl Evaluator {
     fn apply_function(&self, func: Rc<Object>, args: Vec<Rc<Object>>) -> ObjectRcResult {
         match *func {
             Object::Function(ref parameters, ref body, ref func_env) => {
-                let mut env = extend_function_env(parameters, func_env.clone(), args);
+                let mut env = extend_function_env(parameters, func_env.clone(), args)?;
                 self.visit_statement(body, &mut env)
             }
             ref x => Err(format!("expected function object, got {}", x)),

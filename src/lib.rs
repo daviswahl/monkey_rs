@@ -8,13 +8,15 @@ mod ast;
 mod parser;
 mod object;
 mod evaluator;
-mod environment;
+pub mod environment;
+use object::Object;
+use std::rc::Rc;
 
-pub fn eval(s: &str) {
+pub fn eval(s: &str, env: &mut environment::Environment) -> Result<Rc<Object>, String> {
     let p = parse(s);
-    let mut env = environment::Environment::new();
-    evaluator::eval(&p, &mut env);
+    evaluator::eval(&p, env)
 }
+
 pub fn parse(s: &str) -> ast::Node {
     parser::parse(s)
 }
