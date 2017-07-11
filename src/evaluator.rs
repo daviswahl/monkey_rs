@@ -6,10 +6,12 @@ use object::Object;
 use parser;
 use lexer;
 use environment::Environment;
+use std::rc::Rc;
+use std::rc;
 
 struct Evaluator {}
 
-type ObjectResult = Result<object::Object, String>;
+type ObjectResult = Result<Rc<object::Object>, String>;
 
 fn eval_bang_prefix_op_exp<'a>(obj: &Object) -> ObjectResult {
     let result = match *obj {
@@ -18,7 +20,7 @@ fn eval_bang_prefix_op_exp<'a>(obj: &Object) -> ObjectResult {
         Object::Null => Object::Boolean(true),
         _ => Object::Boolean(false),
     };
-    Ok(result)
+    Ok(Rc::new(result))
 }
 
 fn eval_infix_expression<'a>(op: &str, left: &Object, right: &Object) -> ObjectResult {
@@ -34,7 +36,9 @@ fn eval_infix_expression<'a>(op: &str, left: &Object, right: &Object) -> ObjectR
                 "<" => Object::Boolean(l < r),
                 "==" => Object::Boolean(l == r),
                 "!=" => Object::Boolean(l != r),
-                _ => Object::Null,
+                x => {
+                    return Err(format!("fell through to {:?}", x))
+                }
             }
         }
         (&Object::Boolean(l), &Object::Boolean(r)) => {
@@ -47,7 +51,7 @@ fn eval_infix_expression<'a>(op: &str, left: &Object, right: &Object) -> ObjectR
         (l, r) => return Err(format!("type mismatch: {} {} {}", l, op, r))
     };
 
-    Ok(result)
+    Ok(Rc::new(result))
 }
 
 fn eval_minus_prefix_op_exp<'a>(obj: &Object) -> ObjectResult {
@@ -55,7 +59,7 @@ fn eval_minus_prefix_op_exp<'a>(obj: &Object) -> ObjectResult {
         Object::Integer(int) => Object::Integer(-int),
         ref t => return Err(format!("unknown operator: -{}", t))
     };
-    Ok(result)
+    Ok(Rc::new(result))
 }
 
 fn is_truthy(obj: &Object) -> bool {
@@ -69,8 +73,8 @@ impl<'a> Evaluator {
     fn visit_expr(&self, expr: &ast::Expression, env: &mut Environment) -> ObjectResult {
         use ast::Expression::*;
         match *expr {
-            Integer(ref int) => Ok(Object::Integer(int.value)),
-            Boolean(ref b) => Ok(Object::Boolean(b.value)),
+            Integer(ref int) => Ok(Rc::new(Object::Integer(int.value))),
+            Boolean(ref b) => Ok(Rc::new(Object::Boolean(b.value))),
 
             Prefix(ref prefix) => {
                 let right = self.visit_expr(&*prefix.right, env)?;
@@ -91,7 +95,7 @@ impl<'a> Evaluator {
     }
 
     fn visit_identifier(&self, expr: &ast::IdentifierExpression, env: &mut Environment) -> ObjectResult {
-        env.get(expr.value.clone()).cloned().ok_or(format!("unknown identifier: {}", expr.value.clone()))
+        env.get(expr.value.clone()).ok_or(format!("unknown identifier: {}", expr.value.clone()))
     }
 
     fn visit_cond_expression(
@@ -106,7 +110,7 @@ impl<'a> Evaluator {
         } else if let Some(ref alt) = ifexp.alternative {
             self.visit_statement(&**alt, env)
         } else {
-            Ok(Object::Null)
+            Ok(Rc::new(Object::Null))
         }
     }
 
@@ -126,21 +130,16 @@ impl<'a> Evaluator {
     fn visit_program(&self, n: &ast::Program) -> ObjectResult {
         let mut env = Environment::new();
 
-        let result = self.visit_statements(&n.statements, &mut env);
-        if let Ok(Object::Return(ret)) = result {
-            Ok(*ret)
-        } else {
-           result
-        }
+        self.visit_statements(&n.statements, &mut env)
     }
 
     fn visit_statements(&self, stmts: &Vec<ast::Node>, env: &mut Environment) -> ObjectResult {
 
-        let mut result = Object::Null;
+        let mut result = Rc::new(Object::Null);
         for (i, stmt) in stmts.iter().enumerate() {
             if let &ast::Node::Statement(ref s) = stmt {
-                result = self.visit_statement(s, env)?;
-                if let Object::Return(_) = result {
+                let tmp = self.visit_statement(s, env)?;
+                if let Object::Return(_) = *tmp {
                     return Ok(result)
                 }
             }
@@ -153,7 +152,7 @@ impl<'a> Evaluator {
         let ident = stmt.name.value.to_owned();
         let value = self.visit_expr(&*stmt.value, env)?;
         env.set(ident, value);
-        Ok(Object::Null)
+        Ok(Rc::new(Object::Null))
     }
 
     fn visit_block_statement(
@@ -174,7 +173,7 @@ impl<'a> Evaluator {
 
             Return(ref ret) => {
                 let result = self.visit_expr(&ret.value, env)?;
-                let ret = Object::Return(Box::new(result));
+                let ret = Rc::new(Object::Return(result.clone()));
                 Ok(ret)
             },
 
@@ -360,7 +359,7 @@ mod tests {
 
     fn assert_eval(s: &str) -> object::Object {
         match eval(&parser::parse(s)) {
-            Ok(e) => e,
+            Ok(e) => Rc::try_unwrap(e).unwrap(),
             Err(e) => {
                 assert!(false, format!("Expected program, got {:?}", e));
                 object::Object::Null

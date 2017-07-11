@@ -1,10 +1,11 @@
 use std::fmt;
+use std::rc::Rc;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Object {
     Integer(i64),
     Boolean(bool),
-    Return(Box<Object>),
+    Return(Rc<Object>),
     Null
 }
 
