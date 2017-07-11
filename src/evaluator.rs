@@ -37,14 +37,14 @@ fn eval_infix_expression(op: &str, left: &Object, right: &Object) -> ObjectResul
                 "<" => Object::Boolean(l < r),
                 "==" => Object::Boolean(l == r),
                 "!=" => Object::Boolean(l != r),
-                x => return Err(format!("unknown operator: INTEGER {} INTEGER", x)),
+                x => return Err(format!("unknown operator: {} {} {}", left, x, right)),
             }
         }
         (&Object::Boolean(l), &Object::Boolean(r)) => {
             match op {
                 "==" => Object::Boolean(l == r),
                 "!=" => Object::Boolean(l != r),
-                x => return Err(format!("unknown operator: BOOLEAN {} BOOLEAN", x)),
+                x => return Err(format!("unknown operator: {} {} {}", left, x, right)),
             }
         }
         (l, r) => return Err(format!("type mismatch: {} {} {}", l, op, r)),
@@ -343,18 +343,18 @@ addTwo(2);";
     #[test]
     fn test_errors() {
         let tests = vec![
-            ("5 + true;", "type mismatch: INTEGER + BOOLEAN"),
-            ("5 + true; 5", "type mismatch: INTEGER + BOOLEAN"),
-            ("-true", "unknown operator: -BOOLEAN"),
-            ("true + false;", "unknown operator: BOOLEAN + BOOLEAN"),
-            ("5; true + false; 5", "unknown operator: BOOLEAN + BOOLEAN"),
+            ("5 + true;", "type mismatch: 5 + true"),
+            ("5 + true; 5", "type mismatch: 5 + true"),
+            ("-true", "unknown operator: -true"),
+            ("true + false;", "unknown operator: true + false"),
+            ("5; true + false; 5", "unknown operator: true + false"),
             (
                 "if (10 > 1) { true + false; }",
-                "unknown operator: BOOLEAN + BOOLEAN"
+                "unknown operator: true + false"
             ),
             (
                 "if (10 > 1) { if (10 > 1) { return true + false; }; return 1; }",
-                "unknown operator: BOOLEAN + BOOLEAN"
+                "unknown operator: true + false"
             ),
         ];
 
