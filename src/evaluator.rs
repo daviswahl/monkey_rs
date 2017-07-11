@@ -65,7 +65,7 @@ fn eval_minus_prefix_op_exp<'a>(obj: &Object) -> ObjectResult {
 fn is_truthy(obj: &Object) -> bool {
     match obj {
         &Object::Boolean(true) => true,
-        _ => false,
+        _ => false
     }
 }
 
@@ -78,7 +78,7 @@ impl<'a> Evaluator {
 
             Prefix(ref prefix) => {
                 let right = self.visit_expr(&*prefix.right, env)?;
-                self.visit_prefix_expression(prefix.operator.as_str(), &right, env)
+                self.visit_prefix_expression(prefix.operator.as_str(), &*right, env)
             }
 
             Infix(ref infix) => {
@@ -104,7 +104,6 @@ impl<'a> Evaluator {
         env: &mut Environment,
     ) -> ObjectResult {
         let cond = self.visit_expr(&*ifexp.condition, env)?;
-
         if is_truthy(&cond) {
             self.visit_statement(&*ifexp.consequence, env)
         } else if let Some(ref alt) = ifexp.alternative {
@@ -136,12 +135,13 @@ impl<'a> Evaluator {
     fn visit_statements(&self, stmts: &Vec<ast::Node>, env: &mut Environment) -> ObjectResult {
 
         let mut result = Rc::new(Object::Null);
-        for (i, stmt) in stmts.iter().enumerate() {
+        for stmt in stmts.iter() {
             if let &ast::Node::Statement(ref s) = stmt {
                 let tmp = self.visit_statement(s, env)?;
-                if let Object::Return(_) = *tmp {
-                    return Ok(result)
+                if let Object::Return(ref f) = *tmp {
+                    return Ok(f.clone())
                 }
+                result = tmp;
             }
         }
 
@@ -358,6 +358,7 @@ mod tests {
     }
 
     fn assert_eval(s: &str) -> object::Object {
+        println!("evaluating: {}", s);
         match eval(&parser::parse(s)) {
             Ok(e) => Rc::try_unwrap(e).unwrap(),
             Err(e) => {
