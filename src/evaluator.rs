@@ -7,7 +7,6 @@ use parser;
 use lexer;
 use environment::Environment;
 
-
 struct Evaluator {}
 
 type ObjectResult = Result<object::Object, String>;
@@ -67,7 +66,7 @@ fn is_truthy(obj: &Object) -> bool {
 }
 
 impl<'a> Evaluator {
-    fn visit_expr(&mut self, expr: &ast::Expression, env: &mut Environment) -> ObjectResult {
+    fn visit_expr(&self, expr: &ast::Expression, env: &mut Environment) -> ObjectResult {
         use ast::Expression::*;
         match *expr {
             Integer(ref int) => Ok(Object::Integer(int.value)),
@@ -91,12 +90,12 @@ impl<'a> Evaluator {
         }
     }
 
-    fn visit_identifier(&mut self, expr: &ast::IdentifierExpression, env: &mut Environment) -> ObjectResult {
+    fn visit_identifier(&self, expr: &ast::IdentifierExpression, env: &mut Environment) -> ObjectResult {
         env.get(expr.value.clone()).cloned().ok_or(format!("unknown identifier: {}", expr.value.clone()))
     }
 
     fn visit_cond_expression(
-        &mut self,
+        &self,
         ifexp: &ast::IfExpression,
         env: &mut Environment,
     ) -> ObjectResult {
@@ -112,7 +111,7 @@ impl<'a> Evaluator {
     }
 
     fn visit_prefix_expression(
-        &mut self,
+        &self,
         op: &str,
         right: &Object,
         env: &mut Environment,
@@ -124,7 +123,7 @@ impl<'a> Evaluator {
         }
     }
 
-    fn visit_program(&mut self, n: &ast::Program) -> ObjectResult {
+    fn visit_program(&self, n: &ast::Program) -> ObjectResult {
         let mut env = Environment::new();
 
         let result = self.visit_statements(&n.statements, &mut env);
@@ -135,7 +134,7 @@ impl<'a> Evaluator {
         }
     }
 
-    fn visit_statements(&mut self, stmts: &Vec<ast::Node>, env: &mut Environment) -> ObjectResult {
+    fn visit_statements(&self, stmts: &Vec<ast::Node>, env: &mut Environment) -> ObjectResult {
 
         let mut result = Object::Null;
         for (i, stmt) in stmts.iter().enumerate() {
@@ -150,7 +149,7 @@ impl<'a> Evaluator {
         Ok(result)
     }
 
-    fn visit_let_statement(&mut self, stmt: &ast::LetStatement, env: &mut Environment) -> ObjectResult {
+    fn visit_let_statement(&self, stmt: &ast::LetStatement, env: &mut Environment) -> ObjectResult {
         let ident = stmt.name.value.to_owned();
         let value = self.visit_expr(&*stmt.value, env)?;
         env.set(ident, value);
@@ -158,14 +157,14 @@ impl<'a> Evaluator {
     }
 
     fn visit_block_statement(
-        &mut self,
+        &self,
         block: &ast::BlockStatement,
         env: &mut Environment,
     ) -> ObjectResult {
         self.visit_statements(&block.statements, env)
     }
 
-    fn visit_statement(&mut self, stmt: &ast::Statement, env: &mut Environment) -> ObjectResult {
+    fn visit_statement(&self, stmt: &ast::Statement, env: &mut Environment) -> ObjectResult {
         use ast::Statement::*;
         match *stmt {
 

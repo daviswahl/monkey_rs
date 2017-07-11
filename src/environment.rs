@@ -5,21 +5,18 @@ pub struct Environment<'a> {
     env: HashMap<String, Object>,
 }
 
-impl <'a>Environment<'a> {
-
+impl<'a> Environment<'a> {
     pub fn new() -> Environment<'a> {
-        Environment{outer: None, env: HashMap::new()}
+        Environment {
+            outer: None,
+            env: HashMap::new(),
+        }
     }
 
     pub fn get(&self, ident: String) -> Option<&Object> {
-        let item = self.env.get(&ident);
-        if item.is_none() {
-            if self.outer.is_some() {
-                return self.outer.unwrap().get(ident)
-            }
-            return None;
-        }
-        item
+        self.env.get(&ident).or(
+            self.outer.and_then(|e| e.get(ident)),
+        )
     }
 
     pub fn set(&mut self, ident: String, obj: Object) {
@@ -27,7 +24,10 @@ impl <'a>Environment<'a> {
     }
 
     pub fn extend(&'a self) -> Environment<'a> {
-        Environment{outer: Some(&self), env: HashMap::new()}
+        Environment {
+            outer: Some(&self),
+            env: HashMap::new(),
+        }
     }
 }
 
@@ -47,7 +47,10 @@ mod tests {
 
             env2.set(String::from("bar"), Object::Boolean(false));
 
-            assert_eq!(env2.get(String::from("bar")).unwrap(), &Object::Boolean(false));
+            assert_eq!(
+                env2.get(String::from("bar")).unwrap(),
+                &Object::Boolean(false)
+            );
             assert_eq!(env2.get(String::from("foo")).unwrap(), &Object::Null);
         }
 
