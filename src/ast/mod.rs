@@ -73,6 +73,7 @@ pub enum Expression {
     If(IfExpression),
     Function(FunctionLiteral),
     Call(CallExpression),
+    String(StringLiteral),
 }
 
 impl HasToken for Expression {
@@ -87,6 +88,7 @@ impl HasToken for Expression {
             Expression::If(ref exp) => exp.token_literal(),
             Expression::Function(ref exp) => exp.token_literal(),
             Expression::Call(ref exp) => exp.token_literal(),
+            Expression::String(ref exp) => exp.token_literal(),
         }
     }
 }
@@ -103,6 +105,7 @@ impl fmt::Display for Expression {
             Expression::If(ref exp) => exp.fmt(f),
             Expression::Function(ref exp) => exp.fmt(f),
             Expression::Call(ref exp) => exp.fmt(f),
+            Expression::String(ref exp) => exp.fmt(f),
         }
     }
 }
@@ -138,7 +141,6 @@ pub struct IdentifierExpression {
 
 
 impl HasToken for IdentifierExpression {
-
     fn token_literal(&self) -> String {
         self.token.literal()
     }
@@ -200,7 +202,6 @@ impl fmt::Display for ReturnStatement {
 }
 
 impl HasToken for ReturnStatement {
-
     fn token_literal(&self) -> String {
         self.token.literal()
     }
@@ -213,7 +214,6 @@ pub struct ExpressionStatement {
 }
 
 impl HasToken for ExpressionStatement {
-
     fn token_literal(&self) -> String {
         self.token.literal()
     }
@@ -229,7 +229,6 @@ impl fmt::Display for ExpressionStatement {
 pub struct UnitExpression();
 
 impl HasToken for UnitExpression {
-
     fn token_literal(&self) -> String {
         "()".to_string()
     }
@@ -299,6 +298,24 @@ impl fmt::Display for InfixExpression {
 }
 
 #[derive(Debug, PartialEq, Clone)]
+pub struct StringLiteral {
+    pub token: token::Token,
+}
+
+impl HasToken for StringLiteral {
+    fn token_literal(&self) -> String {
+        self.token.literal()
+    }
+}
+
+impl fmt::Display for StringLiteral {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.token_literal())
+    }
+}
+
+
+#[derive(Debug, PartialEq, Clone)]
 pub struct BooleanExpression {
     pub token: token::Token,
     pub value: bool,
@@ -348,7 +365,6 @@ pub struct BlockStatement {
 }
 
 impl HasToken for BlockStatement {
-
     fn token_literal(&self) -> String {
         self.token.literal()
     }
@@ -370,7 +386,6 @@ pub struct FunctionLiteral {
 }
 
 impl HasToken for FunctionLiteral {
-
     fn token_literal(&self) -> String {
         self.token.literal()
     }

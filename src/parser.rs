@@ -103,6 +103,7 @@ impl<'a> Parser<'a> {
         let mut left = match self.cur_token {
             IDENT(_) => self.parse_identifier(),
             INT(_) => self.parse_int(),
+            STRING(_) => self.parse_string(),
             BANG => self.parse_prefix_expression(),
             MINUS => self.parse_prefix_expression(),
             TRUE | FALSE => self.parse_boolean(),
@@ -289,6 +290,12 @@ impl<'a> Parser<'a> {
         exp
     }
 
+    fn parse_string(&self) -> Option<ast::Expression> {
+        let tok = self.cur_token.clone();
+        Some(ast::Expression::String(ast::StringLiteral {
+            token: tok,
+        }))
+    }
     fn parse_int(&self) -> Option<ast::Expression> {
         let tok = self.cur_token.clone();
         Some(ast::Expression::Integer(ast::IntegerLiteral {
@@ -504,6 +511,7 @@ mod tests {
 let x = 5;
 let y = 10;
 let foobar = 838383;
+let batz = \"batz\";
 let = 83833;
 let y 83353;
 let 8331254;
@@ -511,9 +519,9 @@ let 8331254;
         );
 
         assert_program(&p.parse(), |program| {
-            assert_eq!(program.statements.len(), 6);
+            assert_eq!(program.statements.len(), 7);
 
-            let tests = vec![("x"), ("y"), ("foobar")];
+            let tests = vec![("x"), ("y"), ("foobar"), ("batz")];
 
             for (idx, t) in tests.iter().enumerate() {
                 let stmt = &program.statements[idx];
@@ -524,7 +532,7 @@ let 8331254;
                 ParseError {
                     expected: IDENT("".to_string()),
                     actual: ASSIGN,
-                    pos: 50,
+                    pos: 69,
                 },
             );
             assert_error(
@@ -532,7 +540,7 @@ let 8331254;
                 ParseError {
                     expected: ASSIGN,
                     actual: INT("83353".to_string()),
-                    pos: 69,
+                    pos: 88,
                 },
             );
             assert_error(
@@ -540,7 +548,7 @@ let 8331254;
                 ParseError {
                     expected: IDENT("".to_string()),
                     actual: INT("8331254".to_string()),
-                    pos: 82,
+                    pos: 101,
                 },
             );
         })
@@ -553,6 +561,7 @@ let 8331254;
             ("return 10;", "10"),
             ("return 993322;", "993322"),
             ("return 4 + 5;", "(4 + 5)"),
+            ("return \"foobar\"", "foobar"),
         ];
 
         for test in tests {
@@ -563,6 +572,17 @@ let 8331254;
                 })
             })
         }
+    }
+
+    #[test]
+    fn test_parse_string() {
+        let mut p = make_parser("\"foobar\"");
+        assert_program(&p.parse(), |program| {
+            assert_statement_expression(&program.statements[0], |exp| {
+                assert_string(exp, "foobar");
+            })
+
+        })
     }
 
     #[test]
@@ -621,6 +641,15 @@ foobar;
                 assert_eq!(int_lit.value, value);
             }
             _ => assert!(false, "Expected integer literal"),
+        }
+    }
+
+    fn assert_string(exp: &ast::Expression, value: &str) {
+        match exp {
+            &ast::Expression::String(ref string) => {
+                assert_eq!(string.token.literal(), value.to_string());
+            }
+            _ => assert!(false, "Expected string literal"),
         }
     }
 
