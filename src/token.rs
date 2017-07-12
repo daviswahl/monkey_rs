@@ -30,6 +30,8 @@ pub enum Token {
     RPAREN,
     LBRACE,
     RBRACE,
+    LBRACKET,
+    RBRACKET,
 
     FUNCTION,
     LET,
@@ -73,6 +75,8 @@ impl Token {
             &Token::RPAREN => ")",
             &Token::LBRACE => "{",
             &Token::RBRACE => "}",
+            &Token::LBRACKET => "[",
+            &Token::RBRACKET => "]",
             &Token::FUNCTION => "FUNCTION",
             &Token::LET => "LET",
             &Token::TRUE => "TRUE",

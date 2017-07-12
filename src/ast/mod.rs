@@ -74,7 +74,8 @@ pub enum Expression {
     Function(FunctionLiteral),
     Call(CallExpression),
     String(StringLiteral),
-    Builtin(token::Token)
+    Builtin(token::Token),
+    Array(ArrayLiteral)
 }
 
 impl HasToken for Expression {
@@ -91,6 +92,7 @@ impl HasToken for Expression {
             Expression::Call(ref exp) => exp.token_literal(),
             Expression::String(ref exp) => exp.token_literal(),
             Expression::Builtin(ref exp) => exp.literal(),
+            Expression::Array(ref exp) => exp.token_literal(),
         }
     }
 }
@@ -108,7 +110,8 @@ impl fmt::Display for Expression {
             Expression::Function(ref exp) => exp.fmt(f),
             Expression::Call(ref exp) => exp.fmt(f),
             Expression::String(ref exp) => exp.fmt(f),
-            Expression::Builtin(ref exp) => write!(f, "{}", exp.literal())
+            Expression::Builtin(ref exp) => write!(f, "{}", exp.literal()),
+            Expression::Array(ref exp) => exp.fmt(f),
         }
     }
 }
@@ -443,6 +446,29 @@ impl fmt::Display for CallExpression {
             .collect::<Vec<String>>()
             .join(", ");
         write!(f, "{}({})", self.function, params)
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct ArrayLiteral {
+    pub token: token::Token,
+    pub elements: Vec<Expression>,
+}
+
+impl HasToken for ArrayLiteral {
+    fn token_literal(&self) -> String {
+        self.token.literal()
+    }
+}
+
+impl fmt::Display for ArrayLiteral {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let elements: String = self.elements
+            .iter()
+            .map(|p| format!("{}", p))
+            .collect::<Vec<String>>()
+            .join(", ");
+        write!(f, "[{}]", elements)
     }
 }
 

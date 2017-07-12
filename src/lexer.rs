@@ -139,9 +139,13 @@ impl <'a>Lexer<'a> {
             b')' => RPAREN,
             b'{' => LBRACE,
             b'}' => RBRACE,
+            b'[' => LBRACKET,
+            b']' => RBRACKET,
+
             b',' => COMMA,
             b';' => SEMICOLON,
             b'\0' => EOF,
+
 
             b'"' => return STRING(self.read_string()),
             x if is_letter(x) => return token::assign_ident(self.read_identifier()),
@@ -218,6 +222,7 @@ if (5 < 10) {
 \"foo-bar\";\
 len(4,5);
 len(\"foobar\");
+[1, 2];
 ";
         let mut l = Lexer::new(input);
 
@@ -325,6 +330,14 @@ len(\"foobar\");
             tok(token::Token::STRING("foobar".to_string()), "foobar"),
             tok(token::Token::RPAREN, ")"),
             tok(token::Token::SEMICOLON, ";"),
+
+            tok(token::Token::LBRACKET, "["),
+            tok(token::Token::INT("1".to_string()), "1"),
+            tok(token::Token::COMMA, ","),
+            tok(token::Token::INT("2".to_string()), "2"),
+            tok(token::Token::RBRACKET, "]"),
+            tok(token::Token::SEMICOLON, ";"),
+
             tok(token::Token::EOF, "EOF"),
         ];
 

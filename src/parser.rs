@@ -108,6 +108,7 @@ impl<'a> Parser<'a> {
             MINUS => self.parse_prefix_expression(),
             TRUE | FALSE => self.parse_boolean(),
             LPAREN => self.parse_grouped_expression(),
+            LBRACKET => self.parse_array(),
             IF => self.parse_if_expression(),
             FUNCTION => self.parse_fn_literal(),
             BUILTIN(_) => self.parse_builtin(),
@@ -132,6 +133,39 @@ impl<'a> Parser<'a> {
             });
         }
         left
+    }
+
+    fn parse_array(&mut self) -> Option<ast::Expression> {
+        Some(ast::Expression::Array(ast::ArrayLiteral {
+            token: self.next_token(),
+            elements: self.parse_array_elements(),
+        }))
+    }
+
+    fn parse_array_elements(&mut self) -> Vec<ast::Expression> {
+        if self.cur_token_is(&Token::LBRACKET) && self.peek_token_is(&Token::RBRACKET) {
+            return vec![];
+        }
+
+        let mut args: Vec<ast::Expression> = vec![];
+
+        self.parse_expression(Precedence::LOWEST).map(|exp| {
+            args.push(exp)
+        });
+
+        while self.peek_token_is(&Token::COMMA) {
+            self.next_token();
+            self.next_token();
+            self.parse_expression(Precedence::LOWEST).map(|exp| {
+                args.push(exp)
+            });
+        }
+
+        if !self.expect_peek(&Token::RBRACKET) {
+            return vec![];
+        }
+        self.next_token();
+        args
     }
 
     fn parse_builtin(&mut self) -> Option<ast::Expression> {
@@ -446,18 +480,42 @@ mod tests {
     use super::*;
     use token::Token::*;
 
+    #[test]
+    fn test_parse_array_literals() {
+        let p = make_parser("[1, 2 * 2, 3 + 3]");
+
+        let prog = assert_no_errors(p.parse());
+        assert_program(&prog, |program| {
+            assert_statement_expression(&program.statements[0], |stmt| {
+                assert_array(stmt, |array| {
+                    assert_integer(&array.elements[0], 1);
+                    assert_infix(&array.elements[1], |infix| {
+                        assert_integer(&infix.left, 2);
+                        assert_eq!(infix.operator.as_str(), "*");
+                        assert_integer(&infix.right, 2);
+                    });
+                    assert_infix(&array.elements[2], |infix| {
+                        assert_integer(&infix.left, 3);
+                        assert_eq!(infix.operator.as_str(), "+");
+                        assert_integer(&infix.right, 3);
+                    });
+                })
+            })
+        })
+    }
+
 
     #[test]
-    fn test_parse_builtin(){
+    fn test_parse_builtin() {
         let p = make_parser("len(4,5);");
         let program = assert_no_errors(p.parse());
         assert_program(&program, |prog| {
             assert_statement_expression(&prog.statements[0], |stmt| {
-               assert_call(&stmt, |call| {
-                   assert_integer(&call.arguments[0], 4);
-                   assert_integer(&call.arguments[1], 5);
-                   assert_builtin(&*call.function, "len")
-               })
+                assert_call(&stmt, |call| {
+                    assert_integer(&call.arguments[0], 4);
+                    assert_integer(&call.arguments[1], 5);
+                    assert_builtin(&*call.function, "len")
+                })
             })
 
         })
@@ -819,7 +877,7 @@ foobar;
     fn assert_builtin(n: &ast::Expression, s: &str) {
         match *n {
             ast::Expression::Builtin(ref builtin) => assert_eq!(builtin.literal().as_str(), s),
-            _ => assert!(false, "Expected builtin")
+            _ => assert!(false, "Expected builtin"),
         }
     }
     fn assert_statement<F>(n: &ast::Node, f: F)
@@ -985,6 +1043,16 @@ foobar;
                 assert_eq!(ident.value.as_str(), value);
             }
             _ => assert!(false, "Expected identifier expression"),
+        }
+    }
+
+    fn assert_array<F>(exp: &ast::Expression, f: F)
+    where
+        F: Fn(&ast::ArrayLiteral),
+    {
+        match exp {
+            &ast::Expression::Array(ref array) => f(array),
+            exp => assert!(false, format!("Expected array expression, got: {:?}", exp)),
         }
     }
 
