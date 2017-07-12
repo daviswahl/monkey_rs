@@ -75,7 +75,8 @@ pub enum Expression {
     Call(CallExpression),
     String(StringLiteral),
     Builtin(token::Token),
-    Array(ArrayLiteral)
+    Array(ArrayLiteral),
+    Index(IndexExpression)
 }
 
 impl HasToken for Expression {
@@ -93,6 +94,7 @@ impl HasToken for Expression {
             Expression::String(ref exp) => exp.token_literal(),
             Expression::Builtin(ref exp) => exp.literal(),
             Expression::Array(ref exp) => exp.token_literal(),
+            Expression::Index(ref exp) => exp.token_literal(),
         }
     }
 }
@@ -112,6 +114,7 @@ impl fmt::Display for Expression {
             Expression::String(ref exp) => exp.fmt(f),
             Expression::Builtin(ref exp) => write!(f, "{}", exp.literal()),
             Expression::Array(ref exp) => exp.fmt(f),
+            Expression::Index(ref exp) => exp.fmt(f),
         }
     }
 }
@@ -300,6 +303,25 @@ impl HasToken for InfixExpression {
 impl fmt::Display for InfixExpression {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "({} {} {})", self.left, self.operator, self.right)
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct IndexExpression {
+    pub token: token::Token,
+    pub left: Box<Expression>,
+    pub index: Box<Expression>,
+}
+
+impl HasToken for IndexExpression {
+    fn token_literal(&self) -> String {
+        self.token.literal()
+    }
+}
+
+impl fmt::Display for IndexExpression {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "({}[{}])", self.left, self.index)
     }
 }
 

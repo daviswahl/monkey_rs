@@ -27,6 +27,7 @@ enum Precedence {
     PRODUCT = 4,
     PREFIX = 5,
     CALL = 6,
+    INDEX = 7,
 }
 
 impl Precedence {
@@ -37,6 +38,7 @@ impl Precedence {
             &Token::PLUS | &Token::MINUS | &Token::CONCAT => Precedence::SUM,
             &Token::SLASH | &Token::ASTERISK => Precedence::PRODUCT,
             &Token::LPAREN => Precedence::CALL,
+            &Token::LBRACKET => Precedence::INDEX,
             _ => Precedence::LOWEST,
         }
     }
@@ -129,10 +131,35 @@ impl<'a> Parser<'a> {
                     self.next_token();
                     self.parse_call_expression(exp)
                 }
+
+                LBRACKET => {
+                    self.next_token();
+                    self.parse_index_expression(exp)
+                }
+
                 _ => Some(exp),
             });
         }
         left
+    }
+
+    fn parse_index_expression(&mut self, exp: ast::Expression) -> Option<ast::Expression> {
+        let tok = self.next_token();
+        let exp = self.parse_expression(Precedence::LOWEST).map(|index| {
+            ast::Expression::Index(ast::IndexExpression {
+                token: tok,
+                left: Box::new(exp),
+                index: Box::new(index),
+            })
+        });
+
+        if !self.expect_peek(&Token::RBRACKET) {
+            self.next_token();
+            return None;
+        }
+        self.next_token();
+
+        exp
     }
 
     fn parse_array(&mut self) -> Option<ast::Expression> {
@@ -478,6 +505,25 @@ mod tests {
     use token::Token::*;
 
     #[test]
+    fn test_parse_index_expressions() {
+        let p = make_parser("myArray[1 + 1];");
+        let prog = assert_no_errors(p.parse());
+        assert_program(&prog, |program| {
+            assert_statement_expression(&program.statements[0], |stmt| {
+                assert_index(&stmt, |index| {
+                    assert_ident(&*index.left, "myArray");
+                    assert_infix(&*index.index, |infix| {
+                        assert_integer(&*infix.left, 1);
+                        assert_integer(&*infix.right, 1);
+                        assert_eq!(infix.operator.as_str(), "+");
+                    })
+                })
+            })
+        })
+
+    }
+
+    #[test]
     fn test_parse_array_literals() {
         let p = make_parser("[1, 2 * 2, 3 + 3]");
 
@@ -717,6 +763,14 @@ foobar;
                 "add(a, b, 1, 2 * 3, 4 + 5, add(6, 7 * 8))",
                 "add(a, b, 1, (2 * 3), (4 + 5), add(6, (7 * 8)))"
             ),
+            (
+                "a * [1, 2, 3, 4][b * c] * d",
+                "((a * ([1, 2, 3, 4][(b * c)])) * d)"
+            ),
+            (
+                "add(a * b[2], b[1], 2 * [1,2][1])",
+                "add((a * (b[2])), (b[1]), (2 * ([1, 2][1])))",
+            ),
         ];
 
         for t in tests {
@@ -869,6 +923,16 @@ foobar;
 
     fn make_lexer(s: &str) -> lexer::Lexer {
         lexer::Lexer::new(s)
+    }
+
+    fn assert_index<F>(n: &ast::Expression, f: F)
+    where
+        F: Fn(&ast::IndexExpression),
+    {
+        match *n {
+            ast::Expression::Index(ref index) => f(index),
+            ref x => assert!(false, "expected index expression, got: {}", x),
+        }
     }
 
     fn assert_builtin(n: &ast::Expression, s: &str) {
