@@ -2,6 +2,7 @@ use std::fmt;
 use builtin;
 use std::rc::Rc;
 use environment::Environment;
+use token;
 use ast;
 
 #[derive(Debug, PartialEq, Clone)]
@@ -11,9 +12,13 @@ pub enum Object {
     StringLiteral(String),
     Return(Rc<Object>),
     Function(Vec<ast::IdentifierExpression>, Box<ast::Statement>, Rc<Environment>),
-    BuiltinFunction(builtin::Builtin),
+    BuiltinFunction(token::Token),
     Null
 }
+
+pub type ObjectRcResult = Result<Rc<Object>, String>;
+pub type ObjectsResult = Result<Vec<Rc<Object>>, String>;
+pub type ObjectResult = Result<Object, String>;
 
 impl fmt::Display for Object {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -28,7 +33,7 @@ impl fmt::Display for Object {
             },
             StringLiteral(ref s) => s.to_string(),
             Null => String::from("NULL"),
-            BuiltinFunction(ref b) => b.to_string(),
+            BuiltinFunction(ref b) => b.literal(),
         };
         write!(f, "{}", t)
     }

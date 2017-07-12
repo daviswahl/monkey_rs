@@ -1,13 +1,10 @@
 use ast;
-use object::Object;
+use object::{Object, ObjectRcResult, ObjectResult, ObjectsResult};
 use environment::Environment;
 use std::rc::Rc;
+use builtin;
 
 struct Evaluator {}
-
-type ObjectRcResult = Result<Rc<Object>, String>;
-type ObjectsResult = Result<Vec<Rc<Object>>, String>;
-type ObjectResult = Result<Object, String>;
 
 fn eval_bang_prefix_op_exp(obj: &Object) -> ObjectResult {
     let result = match *obj {
@@ -126,16 +123,20 @@ impl Evaluator {
 
             Call(ref exp) => self.visit_call_expression(exp, env),
 
+            Builtin(ref builtin) => Ok(Rc::new(Object::BuiltinFunction(builtin.clone()))),
             ref expr => Err(format!("Unimplemented: {:?}", expr)),
         }
     }
 
-    fn apply_function(&self, func: Rc<Object>, args: Vec<Rc<Object>>) -> ObjectRcResult {
+    fn apply_function(&self, func: Rc<Object>, env: &Environment, args: Vec<Rc<Object>>) -> ObjectRcResult {
         match *func {
             Object::Function(ref parameters, ref body, ref func_env) => {
                 let mut env = extend_function_env(parameters, func_env.clone(), args)?;
                 self.visit_statement(body, &mut env)
-            }
+            },
+            Object::BuiltinFunction(ref tok) => {
+                builtin::call(tok, env, args)
+            },
             ref x => Err(format!("expected function object, got {}", x)),
         }
     }
@@ -158,7 +159,7 @@ impl Evaluator {
     ) -> ObjectRcResult {
         let function = self.visit_expr(&*expr.function, &mut env.clone())?;
         let args = self.visit_expressions(&expr.arguments, env)?;
-        self.apply_function(function, args)
+        self.apply_function(function, env, args)
     }
 
     fn visit_function_expression(
@@ -288,6 +289,24 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_builtins() {
+        let input = "len(\"foobar\");";
+        let mut env = Environment::new();
+        assert_integer(assert_eval(input, &mut env).as_ref(), 6);
+    }
+
+    #[test]
+    fn test_builtins_2(){
+       let tests = vec![("len(1);","len: unsupported type 1")];
+        let tests = vec![("len(1,2);","expected 1 argument, got 2")];
+
+        for t in tests {
+            let mut env = Environment::new();
+            assert_error(eval(&parser::parse(t.0).unwrap(), &mut env), t.1)
+        }
+    }
+
+    #[test]
     fn test_closures() {
         let input = "
 let newAdder = fn(x) {
@@ -297,7 +316,7 @@ let addTwo = newAdder(2);
 addTwo(2);";
 
         let mut env = Environment::new();
-        assert_integer_obj(assert_eval(input, &mut env).as_ref(), 4)
+        assert_integer(assert_eval(input, &mut env).as_ref(), 4)
     }
 
     #[test]
@@ -314,7 +333,7 @@ addTwo(2);";
         for t in tests {
             let mut env = Environment::new();
             let evaluated = assert_eval(t.0, &mut env);
-            assert_integer_obj(evaluated.as_ref(), t.1)
+            assert_integer(evaluated.as_ref(), t.1)
         }
 
     }
@@ -338,7 +357,7 @@ addTwo(2);";
         for t in tests {
             let mut env = Environment::new();
             let evaluated = assert_eval(t.0, &mut env);
-            assert_integer_obj(evaluated.as_ref(), t.1);
+            assert_integer(evaluated.as_ref(), t.1);
         }
     }
 
@@ -383,7 +402,7 @@ addTwo(2);";
         for t in tests {
             let mut env = Environment::new();
             let evaluated = assert_eval(t.0, &mut env);
-            assert_integer_obj(evaluated.as_ref(), t.1);
+            assert_integer(evaluated.as_ref(), t.1);
         }
     }
 
@@ -431,7 +450,7 @@ addTwo(2);";
         for test in tests {
             let mut env = Environment::new();
             let evaluated = assert_eval(test.0, &mut env);
-            assert_integer_obj(evaluated.as_ref(), test.1);
+            assert_integer(evaluated.as_ref(), test.1);
         }
     }
 
@@ -549,7 +568,7 @@ addTwo(2);";
         }
     }
 
-    fn assert_integer_obj(obj: &object::Object, expected: i64) {
+    fn assert_integer(obj: &object::Object, expected: i64) {
         match obj {
             &object::Object::Integer(integer) => assert_eq!(integer, expected),
             x => assert!(false, format!("Expected integer object, got {:?}", x)),

@@ -330,7 +330,6 @@ len(\"foobar\");
 
         for t in tests {
             let tok = l.next_token();
-            println!("compare: {:?} : {:?}", &tok, &t.0);
             assert!(token::cmp(&tok, &t.0));
             assert_eq!(tok.literal(), t.1);
         }
