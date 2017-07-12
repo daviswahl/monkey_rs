@@ -110,6 +110,7 @@ impl<'a> Parser<'a> {
             LPAREN => self.parse_grouped_expression(),
             IF => self.parse_if_expression(),
             FUNCTION => self.parse_fn_literal(),
+            BUILTIN(_) => self.parse_builtin(),
             _ => None,
         };
 
@@ -131,6 +132,11 @@ impl<'a> Parser<'a> {
             });
         }
         left
+    }
+
+    fn parse_builtin(&mut self) -> Option<ast::Expression> {
+        let tok = self.cur_token.clone();
+        Some(ast::Expression::Builtin(tok))
     }
 
     fn parse_call_expression(&mut self, func: ast::Expression) -> Option<ast::Expression> {
@@ -294,6 +300,7 @@ impl<'a> Parser<'a> {
         let tok = self.cur_token.clone();
         Some(ast::Expression::String(ast::StringLiteral { token: tok }))
     }
+
     fn parse_int(&self) -> Option<ast::Expression> {
         let tok = self.cur_token.clone();
         Some(ast::Expression::Integer(ast::IntegerLiteral {
@@ -437,71 +444,23 @@ impl<'a> Parser<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
     use token::Token::*;
-    fn make_parser(s: &str) -> Parser {
-        Parser::new(make_lexer(s))
-    }
 
-    fn make_lexer(s: &str) -> lexer::Lexer {
-        lexer::Lexer::new(s)
-    }
 
-    fn assert_statement<F>(n: &ast::Node, f: F)
-    where
-        F: Fn(&ast::Statement),
-    {
-        match *n {
-            ast::Node::Statement(ref stmt) => f(stmt),
-            _ => assert!(false, "Expected statement"),
-        }
+    #[test]
+    fn test_parse_builtin(){
+        let p = make_parser("len(4,5);");
+        let program = assert_no_errors(p.parse());
+        assert_program(&program, |prog| {
+            assert_statement_expression(&prog.statements[0], |stmt| {
+               assert_call(&stmt, |call| {
+                   assert_integer(&call.arguments[0], 4);
+                   assert_integer(&call.arguments[1], 5);
+                   assert_builtin(&*call.function, "len")
+               })
+            })
 
-    }
-
-    fn assert_let<F>(s: &ast::Node, t: &str, f: F)
-    where
-        F: Fn(&ast::LetStatement),
-    {
-        use ast::HasToken;
-        assert_statement(s, |stmt| {
-            assert_eq!(stmt.token_literal(), "LET");
-            match *stmt {
-                ast::Statement::Let(ref l) => {
-                    assert_eq!(l.name.value, t);
-                    f(l)
-                }
-                _ => assert!(false, "Expected let statement"),
-            }
         })
-    }
-
-    fn assert_return<F>(s: &ast::Node, f: F)
-    where
-        F: Fn(&ast::ReturnStatement),
-    {
-        use ast::HasToken;
-        assert_statement(s, |stmt| {
-            assert_eq!(stmt.token_literal(), "RETURN");
-            match *stmt {
-                ast::Statement::Return(ref ret) => f(ret),
-                _ => assert!(false, "Expected return statement"),
-            }
-        })
-    }
-
-    fn test_no_errors(p: Result<ast::Node, Vec<ParseError>>)  -> ast::Node {
-        assert!(p.is_ok());
-        p.unwrap()
-    }
-    fn assert_error(p: &Result<ast::Node, Vec<ParseError>>, err: ParseError) {
-        if let &Err(ref errors) = p {
-            let b = errors.iter().any(|e| *e == err);
-            if !b {
-                let err = format!("Expected {:?} to be in {:?}", err, errors);
-                assert!(b, err);
-            }
-        }
-
     }
 
     #[test]
@@ -615,113 +574,6 @@ foobar;
         })
     }
 
-    fn assert_statement_expression<F>(node: &ast::Node, f: F)
-    where
-        F: Fn(&ast::Expression),
-    {
-        assert_statement(node, |stmt| match stmt {
-            &ast::Statement::Expression(ref exp) => f(&exp.value),
-            _ => assert!(false, "Expected expression statement"),
-        })
-    }
-
-    fn assert_block<F>(stmt: &ast::Statement, f: F)
-    where
-        F: Fn(&Vec<ast::Node>),
-    {
-        match stmt {
-            &ast::Statement::Block(ref exp) => f(&exp.statements),
-            _ => assert!(false, "Expected block statement"),
-        }
-    }
-
-
-    fn assert_integer(exp: &ast::Expression, value: i64) {
-        match exp {
-            &ast::Expression::Integer(ref int_lit) => {
-                assert_eq!(int_lit.value, value);
-            }
-            _ => assert!(false, "Expected integer literal"),
-        }
-    }
-
-    fn assert_string(exp: &ast::Expression, value: &str) {
-        match exp {
-            &ast::Expression::String(ref string) => {
-                assert_eq!(string.token.literal(), value.to_string());
-            }
-            _ => assert!(false, "Expected string literal"),
-        }
-    }
-
-    fn assert_program<F>(node: &ast::Node, f: F)
-    where
-        F: Fn(&ast::Program),
-    {
-        match node {
-            &ast::Node::Program(ref p) => f(p),
-            x => assert!(false, format!("Expected program node, got {:?}", x)),
-        }
-    }
-
-    fn assert_infix<F>(exp: &ast::Expression, f: F)
-    where
-        F: Fn(&ast::InfixExpression),
-    {
-        match exp {
-            &ast::Expression::Infix(ref infix) => f(infix),
-            _ => assert!(false, "Expected infix expression"),
-        }
-    }
-
-    fn test_if_expression<F>(exp: &ast::Expression, f: F)
-    where
-        F: Fn(&ast::IfExpression),
-    {
-        match exp {
-            &ast::Expression::If(ref ifexp) => f(ifexp),
-            _ => assert!(false, "Expected if expression"),
-        }
-    }
-
-    fn assert_fn_expression<F>(exp: &ast::Expression, f: F)
-    where
-        F: Fn(&ast::FunctionLiteral),
-    {
-        match exp {
-            &ast::Expression::Function(ref func) => f(func),
-            _ => assert!(false, "Expected function literal"),
-        }
-    }
-
-    fn assert_call<F>(exp: &ast::Expression, f: F)
-    where
-        F: Fn(&ast::CallExpression),
-    {
-        match exp {
-            &ast::Expression::Call(ref call) => f(call),
-            _ => assert!(false, "Expected call expression"),
-        }
-    }
-
-    fn test_prefix_expression<F>(exp: &ast::Expression, f: F)
-    where
-        F: Fn(&ast::PrefixExpression),
-    {
-        match exp {
-            &ast::Expression::Prefix(ref prefix) => f(&*prefix),
-            _ => assert!(false, "Expected prefix expression"),
-        }
-    }
-
-    fn assert_ident(exp: &ast::Expression, value: &str) {
-        match exp {
-            &ast::Expression::Identifier(ref ident) => {
-                assert_eq!(ident.value.as_str(), value);
-            }
-            _ => assert!(false, "Expected identifier expression"),
-        }
-    }
 
     #[test]
     fn test_integer_expression() {
@@ -813,7 +665,7 @@ foobar;
         ];
 
         for t in tests {
-            let prog = test_no_errors(make_parser(t.0).parse());
+            let prog = assert_no_errors(make_parser(t.0).parse());
             assert_program(&prog, |program| {
 
                 assert_eq!(t.1, format!("{}", program));
@@ -822,15 +674,15 @@ foobar;
     }
 
     #[test]
-    fn test_if_expressions() {
+    fn assert_if_expressions() {
         let input = "if (x < y) { x }";
         let parser = make_parser(input);
-        let prog = test_no_errors(parser.parse());
+        let prog = assert_no_errors(parser.parse());
         assert_program(&prog, |program| {
 
 
             assert_statement_expression(&program.statements[0], |exp| {
-                test_if_expression(exp, |ifexp| {
+                assert_if_expression(exp, |ifexp| {
                     assert_infix(&ifexp.condition, |infix| {
                         assert_ident(&infix.left, "x");
                         assert_eq!(infix.operator, "<");
@@ -850,10 +702,10 @@ foobar;
     fn test_if_else_expressions() {
         let input = "if (x < y) { x } else { y }";
         let parser = make_parser(input);
-        let prog = test_no_errors(parser.parse());
+        let prog = assert_no_errors(parser.parse());
         assert_program(&prog, |program| {
             assert_statement_expression(&program.statements[0], |exp| {
-                test_if_expression(exp, |ifexp| {
+                assert_if_expression(exp, |ifexp| {
                     assert_infix(&ifexp.condition, |infix| {
                         assert_ident(&infix.left, "x");
                         assert_eq!(infix.operator, "<");
@@ -879,7 +731,7 @@ foobar;
     fn test_function_literal() {
         let input = "fn(x, y) { x  + y }";
         let parser = make_parser(input);
-        let prog = test_no_errors(parser.parse());
+        let prog = assert_no_errors(parser.parse());
         assert_program(&prog, |program| {
             assert_statement_expression(&program.statements[0], |exp| {
                 assert_fn_expression(exp, |fnexp| {
@@ -904,7 +756,7 @@ foobar;
     fn test_call_expression() {
         let input = "add(1, 2 * 3, 4 + 5);";
         let parser = make_parser(input);
-        let prog = test_no_errors(parser.parse());
+        let prog = assert_no_errors(parser.parse());
 
         assert_program(&prog, |program| {
             assert_statement_expression(&program.statements[0], |exp| {
@@ -929,7 +781,7 @@ foobar;
     fn test_call_expression_2() {
         let input = "add(1);";
         let parser = make_parser(input);
-        let prog = test_no_errors(parser.parse());
+        let prog = assert_no_errors(parser.parse());
 
         assert_program(&prog, |program| {
             assert_statement_expression(&program.statements[0], |exp| {
@@ -939,7 +791,7 @@ foobar;
     }
 
     #[test]
-    fn assert_lets() {
+    fn test_lets() {
         let tests = vec![
             ("let x = 5;", "x", "5"),
             ("let y = true;", "y", "true"),
@@ -956,4 +808,184 @@ foobar;
             })
         }
     }
+    fn make_parser(s: &str) -> Parser {
+        Parser::new(make_lexer(s))
+    }
+
+    fn make_lexer(s: &str) -> lexer::Lexer {
+        lexer::Lexer::new(s)
+    }
+
+    fn assert_builtin(n: &ast::Expression, s: &str) {
+        match *n {
+            ast::Expression::Builtin(ref builtin) => assert_eq!(builtin.literal().as_str(), s),
+            _ => assert!(false, "Expected builtin")
+        }
+    }
+    fn assert_statement<F>(n: &ast::Node, f: F)
+    where
+        F: Fn(&ast::Statement),
+    {
+        match *n {
+            ast::Node::Statement(ref stmt) => f(stmt),
+            _ => assert!(false, "Expected statement"),
+        }
+
+    }
+
+    fn assert_let<F>(s: &ast::Node, t: &str, f: F)
+    where
+        F: Fn(&ast::LetStatement),
+    {
+        use ast::HasToken;
+        assert_statement(s, |stmt| {
+            assert_eq!(stmt.token_literal(), "LET");
+            match *stmt {
+                ast::Statement::Let(ref l) => {
+                    assert_eq!(l.name.value, t);
+                    f(l)
+                }
+                _ => assert!(false, "Expected let statement"),
+            }
+        })
+    }
+
+    fn assert_return<F>(s: &ast::Node, f: F)
+    where
+        F: Fn(&ast::ReturnStatement),
+    {
+        use ast::HasToken;
+        assert_statement(s, |stmt| {
+            assert_eq!(stmt.token_literal(), "RETURN");
+            match *stmt {
+                ast::Statement::Return(ref ret) => f(ret),
+                _ => assert!(false, "Expected return statement"),
+            }
+        })
+    }
+
+    fn assert_no_errors(p: Result<ast::Node, Vec<ParseError>>) -> ast::Node {
+        assert!(p.is_ok());
+        p.unwrap()
+    }
+
+    fn assert_error(p: &Result<ast::Node, Vec<ParseError>>, err: ParseError) {
+        if let &Err(ref errors) = p {
+            let b = errors.iter().any(|e| *e == err);
+            if !b {
+                let err = format!("Expected {:?} to be in {:?}", err, errors);
+                assert!(b, err);
+            }
+        }
+
+    }
+
+    fn assert_statement_expression<F>(node: &ast::Node, f: F)
+    where
+        F: Fn(&ast::Expression),
+    {
+        assert_statement(node, |stmt| match stmt {
+            &ast::Statement::Expression(ref exp) => f(&exp.value),
+            _ => assert!(false, "Expected expression statement"),
+        })
+    }
+
+    fn assert_block<F>(stmt: &ast::Statement, f: F)
+    where
+        F: Fn(&Vec<ast::Node>),
+    {
+        match stmt {
+            &ast::Statement::Block(ref exp) => f(&exp.statements),
+            _ => assert!(false, "Expected block statement"),
+        }
+    }
+
+
+    fn assert_integer(exp: &ast::Expression, value: i64) {
+        match exp {
+            &ast::Expression::Integer(ref int_lit) => {
+                assert_eq!(int_lit.value, value);
+            }
+            _ => assert!(false, "Expected integer literal"),
+        }
+    }
+
+    fn assert_string(exp: &ast::Expression, value: &str) {
+        match exp {
+            &ast::Expression::String(ref string) => {
+                assert_eq!(string.token.literal(), value.to_string());
+            }
+            _ => assert!(false, "Expected string literal"),
+        }
+    }
+
+    fn assert_program<F>(node: &ast::Node, f: F)
+    where
+        F: Fn(&ast::Program),
+    {
+        match node {
+            &ast::Node::Program(ref p) => f(p),
+            x => assert!(false, format!("Expected program node, got {:?}", x)),
+        }
+    }
+
+    fn assert_infix<F>(exp: &ast::Expression, f: F)
+    where
+        F: Fn(&ast::InfixExpression),
+    {
+        match exp {
+            &ast::Expression::Infix(ref infix) => f(infix),
+            _ => assert!(false, "Expected infix expression"),
+        }
+    }
+
+    fn assert_if_expression<F>(exp: &ast::Expression, f: F)
+    where
+        F: Fn(&ast::IfExpression),
+    {
+        match exp {
+            &ast::Expression::If(ref ifexp) => f(ifexp),
+            _ => assert!(false, "Expected if expression"),
+        }
+    }
+
+    fn assert_fn_expression<F>(exp: &ast::Expression, f: F)
+    where
+        F: Fn(&ast::FunctionLiteral),
+    {
+        match exp {
+            &ast::Expression::Function(ref func) => f(func),
+            _ => assert!(false, "Expected function literal"),
+        }
+    }
+
+    fn assert_call<F>(exp: &ast::Expression, f: F)
+    where
+        F: Fn(&ast::CallExpression),
+    {
+        match exp {
+            &ast::Expression::Call(ref call) => f(call),
+            x => assert!(false, format!("Expected call expression, got: {}", x)),
+        }
+    }
+
+    fn test_prefix_expression<F>(exp: &ast::Expression, f: F)
+    where
+        F: Fn(&ast::PrefixExpression),
+    {
+        match exp {
+            &ast::Expression::Prefix(ref prefix) => f(&*prefix),
+            _ => assert!(false, "Expected prefix expression"),
+        }
+    }
+
+    fn assert_ident(exp: &ast::Expression, value: &str) {
+        match exp {
+            &ast::Expression::Identifier(ref ident) => {
+                assert_eq!(ident.value.as_str(), value);
+            }
+            _ => assert!(false, "Expected identifier expression"),
+        }
+    }
+
 }

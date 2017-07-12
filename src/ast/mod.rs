@@ -74,6 +74,7 @@ pub enum Expression {
     Function(FunctionLiteral),
     Call(CallExpression),
     String(StringLiteral),
+    Builtin(token::Token)
 }
 
 impl HasToken for Expression {
@@ -89,6 +90,7 @@ impl HasToken for Expression {
             Expression::Function(ref exp) => exp.token_literal(),
             Expression::Call(ref exp) => exp.token_literal(),
             Expression::String(ref exp) => exp.token_literal(),
+            Expression::Builtin(ref exp) => exp.literal(),
         }
     }
 }
@@ -106,6 +108,7 @@ impl fmt::Display for Expression {
             Expression::Function(ref exp) => exp.fmt(f),
             Expression::Call(ref exp) => exp.fmt(f),
             Expression::String(ref exp) => exp.fmt(f),
+            Expression::Builtin(ref exp) => write!(f, "{}", exp.literal())
         }
     }
 }
@@ -375,6 +378,23 @@ impl fmt::Display for BlockStatement {
             write!(f, "{}", stmt)?;
         }
         Ok(())
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct BuiltinFunction {
+    pub token: token::Token,
+}
+
+impl HasToken for BuiltinFunction {
+    fn token_literal(&self) -> String {
+        self.token.literal()
+    }
+}
+
+impl fmt::Display for BuiltinFunction {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.token_literal())
     }
 }
 
