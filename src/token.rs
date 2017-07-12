@@ -101,6 +101,6 @@ pub fn compare_tokens(l: &Token, r: &Token) -> bool {
     match (l, r) {
         (&IDENT(_), &IDENT(_)) => true,
         (&INT(_), &INT(_)) => true,
-        _ => l == r
+        _ => l == r,
     }
 }

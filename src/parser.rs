@@ -68,9 +68,6 @@ impl<'a> Parser<'a> {
         mem::replace(&mut self.cur_token, cur)
     }
 
-
-
-
     fn cur_token_is(&self, t: &token::Token) -> bool {
         token::compare_tokens(&self.cur_token, t)
     }
@@ -122,8 +119,7 @@ impl<'a> Parser<'a> {
 
         while !self.peek_token_is(&SEMICOLON) && p < self.peek_precedence() {
             left = left.and_then(|exp| match self.peek_token {
-                PLUS | MINUS | SLASH | ASTERISK | EQ |
-                NOT_EQ | LT | GT => {
+                PLUS | MINUS | SLASH | ASTERISK | EQ | NOT_EQ | LT | GT => {
                     self.next_token();
                     self.parse_infix_expression(exp)
                 }
@@ -428,9 +424,7 @@ impl<'a> Parser<'a> {
             }
             self.next_token();
         }
-        ast::Node::Program(ast::Program {
-            statements: statements
-        })
+        ast::Node::Program(ast::Program { statements: statements })
     }
 }
 
@@ -919,9 +913,7 @@ foobar;
 
         assert_program(&prog, |program| {
             assert_statement_expression(&program.statements[0], |exp| {
-                assert_call(exp, |callexp| {
-                    assert_integer(&callexp.arguments[0], 1);
-                })
+                assert_call(exp, |callexp| { assert_integer(&callexp.arguments[0], 1); })
             })
         })
     }
