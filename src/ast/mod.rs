@@ -404,7 +404,7 @@ impl fmt::Display for BuiltinFunction {
 #[derive(Debug, PartialEq, Clone)]
 pub struct FunctionLiteral {
     pub token: token::Token,
-    pub parameters: Vec<Box<Expression>>,
+    pub parameters: Vec<Expression>,
     pub body: Box<Statement>,
 }
 
@@ -429,7 +429,7 @@ impl fmt::Display for FunctionLiteral {
 pub struct CallExpression {
     pub token: token::Token,
     pub function: Box<Expression>,
-    pub arguments: Vec<Box<Expression>>,
+    pub arguments: Vec<Expression>,
 }
 
 impl HasToken for CallExpression {

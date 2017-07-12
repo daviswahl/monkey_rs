@@ -124,8 +124,17 @@ impl Evaluator {
             Call(ref exp) => self.visit_call_expression(exp, env),
 
             Builtin(ref builtin) => Ok(Rc::new(Object::BuiltinFunction(builtin.clone()))),
+
+            Array(ref exp) => self.visit_array_expression(exp, env),
             ref expr => Err(format!("Unimplemented: {:?}", expr)),
         }
+    }
+
+    fn visit_array_expression(&self, exp: &ast::ArrayLiteral, env: &mut Environment) -> ObjectRcResult {
+
+        self.visit_expressions(&exp.elements, env).map(|elements| {
+            Rc::new(Object::ArrayLiteral(elements))
+        })
     }
 
     fn apply_function(&self, func: Rc<Object>, env: &Environment, args: Vec<Rc<Object>>) -> ObjectRcResult {
@@ -142,12 +151,12 @@ impl Evaluator {
     }
     fn visit_expressions(
         &self,
-        exprs: &Vec<Box<ast::Expression>>,
+        exprs: &Vec<ast::Expression>,
         env: &mut Environment,
     ) -> ObjectsResult {
         let mut results: Vec<Rc<Object>> = vec![];
         for expr in exprs.iter() {
-            results.push(self.visit_expr(expr.as_ref(), env)?);
+            results.push(self.visit_expr(&expr, env)?);
         }
         Ok(results)
     }
@@ -169,7 +178,7 @@ impl Evaluator {
     ) -> ObjectRcResult {
         let mut identifiers: Vec<ast::IdentifierExpression> = vec![];
         for param in expr.parameters.clone().into_iter() {
-            match *param {
+            match param {
                 ast::Expression::Identifier(exp) => identifiers.push(exp),
                 x => return Err(format!("Expected identifier, got {}", x)),
             }
@@ -287,6 +296,21 @@ mod tests {
     use parser;
     use object;
     use super::*;
+
+    #[test]
+    fn test_array_literals() {
+        let tests =   vec![
+            ("[1,2,3]", vec![Object::Integer(1), Object::Integer(2), Object::Integer(3)]),
+            ("[true,false,true]", vec![Object::Boolean(true), Object::Boolean(false), Object::Boolean(true)]),
+            ("[\"foo\"]", vec![Object::StringLiteral("foo".to_string())]),
+            ("[]", vec![]),
+        ];
+
+        for t in tests {
+            let mut env = Environment::new();
+            assert_array(assert_eval(t.0, &mut env).as_ref(), t.1)
+        }
+    }
 
     #[test]
     fn test_builtins() {
@@ -513,6 +537,16 @@ addTwo(2);";
         }
     }
 
+    fn assert_array(obj: &Object, expect: Vec<Object>) {
+        match obj {
+            &Object::ArrayLiteral(ref array) => {
+                for (i, elem) in array.clone().iter().enumerate() {
+                    assert_eq!(**elem, expect[i])
+                }
+            }
+            x => assert!(false, "Expected string object, got {}", x)
+        }
+    }
     fn assert_string(obj: &Object, expect: &str) {
         match obj {
             &Object::StringLiteral(ref s) => {

@@ -13,6 +13,7 @@ pub enum Object {
     Return(Rc<Object>),
     Function(Vec<ast::IdentifierExpression>, Box<ast::Statement>, Rc<Environment>),
     BuiltinFunction(token::Token),
+    ArrayLiteral(Vec<Rc<Object>>),
     Null
 }
 
@@ -34,6 +35,10 @@ impl fmt::Display for Object {
             StringLiteral(ref s) => s.to_string(),
             Null => String::from("NULL"),
             BuiltinFunction(ref b) => b.literal(),
+            ArrayLiteral(ref elements) => {
+                let elems = elements.iter().map(|p| p.to_string()).collect::<Vec<String>>().join(",");
+                format!("[{}]", elems)
+            }
         };
         write!(f, "{}", t)
     }

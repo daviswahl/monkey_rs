@@ -177,10 +177,7 @@ impl<'a> Parser<'a> {
         Some(ast::Expression::Call(ast::CallExpression {
             token: self.next_token(),
             function: Box::new(func),
-            arguments: self.parse_call_arguments()
-                .into_iter()
-                .map(Box::new)
-                .collect(),
+            arguments: self.parse_call_arguments(),
         }))
     }
 
@@ -227,7 +224,7 @@ impl<'a> Parser<'a> {
         self.parse_block_statement().map(|body| {
             ast::Expression::Function(ast::FunctionLiteral {
                 token: tok,
-                parameters: parameters.into_iter().map(Box::new).collect(),
+                parameters: parameters,
                 body: Box::new(body),
             })
         })
