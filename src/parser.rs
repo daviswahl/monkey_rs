@@ -1,19 +1,20 @@
 use lexer;
 use token;
+use token::Token;
 use ast;
 
 #[derive(Debug)]
 pub struct Parser<'a> {
     lexer: lexer::Lexer<'a>,
-    cur_token: token::Token,
-    peek_token: token::Token,
+    cur_token: Token,
+    peek_token: Token,
     errors: Vec<ParseError>,
 }
 
 #[derive(PartialEq, Debug)]
 struct ParseError {
-    expected: token::Token,
-    actual: token::Token,
+    expected: Token,
+    actual: Token,
     pos: usize,
 }
 
@@ -29,14 +30,13 @@ enum Precedence {
 }
 
 impl Precedence {
-    pub fn from_token(t: &token::Token) -> Precedence {
-        use token::Token::*;
+    pub fn from_token(t: &Token) -> Precedence {
         match t {
-            &EQ | &NOT_EQ => Precedence::EQUALS,
-            &LT | &GT => Precedence::LESSGREATER,
-            &PLUS | &MINUS => Precedence::SUM,
-            &SLASH | &ASTERISK => Precedence::PRODUCT,
-            &LPAREN => Precedence::CALL,
+            &Token::EQ | &Token::NOT_EQ => Precedence::EQUALS,
+            &Token::LT | &Token::GT => Precedence::LESSGREATER,
+            &Token::PLUS | &Token::MINUS => Precedence::SUM,
+            &Token::SLASH | &Token::ASTERISK => Precedence::PRODUCT,
+            &Token::LPAREN => Precedence::CALL,
             _ => Precedence::LOWEST,
         }
     }
@@ -60,7 +60,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn next_token(&mut self) -> token::Token {
+    fn next_token(&mut self) -> Token {
         use std::mem;
         let peek = self.lexer.next_token();
 
@@ -68,15 +68,15 @@ impl<'a> Parser<'a> {
         mem::replace(&mut self.cur_token, cur)
     }
 
-    fn cur_token_is(&self, t: &token::Token) -> bool {
+    fn cur_token_is(&self, t: &Token) -> bool {
         token::cmp(&self.cur_token, t)
     }
 
-    fn peek_token_is(&self, t: &token::Token) -> bool {
+    fn peek_token_is(&self, t: &Token) -> bool {
         token::cmp(&self.peek_token, t)
     }
 
-    fn expect_peek(&mut self, t: &token::Token) -> bool {
+    fn expect_peek(&mut self, t: &Token) -> bool {
         if self.peek_token_is(t) {
             true
         } else {
@@ -97,7 +97,6 @@ impl<'a> Parser<'a> {
     fn cur_precedence(&self) -> Precedence {
         Precedence::from_token(&self.cur_token)
     }
-
 
     fn parse_expression(&mut self, p: Precedence) -> Option<ast::Expression> {
         use token::Token::*;
@@ -172,14 +171,14 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_fn_literal(&mut self) -> Option<ast::Expression> {
-        if !self.expect_peek(&token::Token::LPAREN) {
+        if !self.expect_peek(&Token::LPAREN) {
             return None;
         }
         let tok = self.next_token();
 
         let parameters = self.parse_function_parameters();
 
-        if !self.expect_peek(&token::Token::LBRACE) {
+        if !self.expect_peek(&Token::LBRACE) {
             return None;
         }
         self.next_token();
@@ -194,7 +193,7 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_function_parameters(&mut self) -> Vec<ast::Expression> {
-        if self.peek_token_is(&token::Token::RPAREN) {
+        if self.peek_token_is(&Token::RPAREN) {
             self.next_token();
             return vec![];
         }
@@ -204,13 +203,13 @@ impl<'a> Parser<'a> {
 
         self.parse_identifier().map(|exp| params.push(exp));
 
-        while self.peek_token_is(&token::Token::COMMA) {
+        while self.peek_token_is(&Token::COMMA) {
             self.next_token();
             self.next_token();
             self.parse_identifier().map(|exp| params.push(exp));
         }
 
-        if !self.expect_peek(&token::Token::RPAREN) {
+        if !self.expect_peek(&Token::RPAREN) {
             return vec![];
         }
         self.next_token();
@@ -219,7 +218,7 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_if_expression(&mut self) -> Option<ast::Expression> {
-        if !self.expect_peek(&token::Token::LPAREN) {
+        if !self.expect_peek(&Token::LPAREN) {
             return None;
         }
 
@@ -229,22 +228,22 @@ impl<'a> Parser<'a> {
 
         let cond = self.parse_expression(Precedence::LOWEST);
 
-        if !self.expect_peek(&token::Token::RPAREN) {
+        if !self.expect_peek(&Token::RPAREN) {
             return None;
         }
         self.next_token();
 
-        if !self.expect_peek(&token::Token::LBRACE) {
+        if !self.expect_peek(&Token::LBRACE) {
             return None;
         }
 
         cond.and_then(|cond_exp| {
             self.parse_block_statement().map(|block| {
 
-                let alt = if self.peek_token_is(&token::Token::ELSE) {
+                let alt = if self.peek_token_is(&Token::ELSE) {
                     self.next_token();
 
-                    if !self.expect_peek(&token::Token::LBRACE) {
+                    if !self.expect_peek(&Token::LBRACE) {
                         None
                     } else {
                         self.next_token();
@@ -268,7 +267,7 @@ impl<'a> Parser<'a> {
         let tok = self.next_token();
         let mut statements: Vec<ast::Node> = vec![];
 
-        while !self.cur_token_is(&token::Token::RBRACE) {
+        while !self.cur_token_is(&Token::RBRACE) {
             self.parse_statement().map(|stmt| statements.push(stmt));
             self.next_token();
         }
@@ -283,7 +282,7 @@ impl<'a> Parser<'a> {
 
         let exp = self.parse_expression(Precedence::LOWEST);
 
-        if !self.expect_peek(&token::Token::RPAREN) {
+        if !self.expect_peek(&Token::RPAREN) {
             return None;
         }
         self.next_token();
@@ -302,7 +301,7 @@ impl<'a> Parser<'a> {
         let tok = self.cur_token.clone();
         Some(ast::Expression::Boolean(ast::BooleanExpression {
             token: tok,
-            value: self.cur_token_is(&token::Token::TRUE),
+            value: self.cur_token_is(&Token::TRUE),
         }))
     }
 
@@ -325,7 +324,7 @@ impl<'a> Parser<'a> {
             }))
         });
 
-        if self.peek_token_is(&token::Token::SEMICOLON) {
+        if self.peek_token_is(&Token::SEMICOLON) {
             self.next_token();
         }
         stmt
@@ -359,12 +358,12 @@ impl<'a> Parser<'a> {
 
     fn parse_let_statement(&mut self) -> Option<ast::Node> {
 
-        if !self.expect_peek(&token::Token::IDENT("".to_string())) {
+        if !self.expect_peek(&Token::IDENT("".to_string())) {
             return None;
         }
         let let_tok = self.next_token();
 
-        if !self.expect_peek(&token::Token::ASSIGN) {
+        if !self.expect_peek(&Token::ASSIGN) {
             return None;
         }
 
@@ -380,7 +379,7 @@ impl<'a> Parser<'a> {
             }))
         });
 
-        if self.peek_token_is(&token::Token::SEMICOLON) {
+        if self.peek_token_is(&Token::SEMICOLON) {
             self.next_token();
         }
 
@@ -392,7 +391,7 @@ impl<'a> Parser<'a> {
         let exp = self.parse_expression(Precedence::LOWEST);
 
 
-        if self.peek_token_is(&token::Token::SEMICOLON) {
+        if self.peek_token_is(&Token::SEMICOLON) {
             self.next_token();
         }
 
@@ -406,10 +405,9 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_statement(&mut self) -> Option<ast::Node> {
-        use token::Token::*;
         match self.cur_token {
-            LET => self.parse_let_statement(),
-            RETURN => self.parse_return_statement(),
+            Token::LET => self.parse_let_statement(),
+            Token::RETURN => self.parse_return_statement(),
             _ => self.parse_expression_statement(),
         }
     }
@@ -418,7 +416,7 @@ impl<'a> Parser<'a> {
         let mut statements: Vec<ast::Node> = vec![];
 
 
-        while self.cur_token != token::Token::EOF {
+        while self.cur_token != Token::EOF {
             if let Some(s) = self.parse_statement() {
                 statements.push(s);
             }

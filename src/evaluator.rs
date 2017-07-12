@@ -1,12 +1,7 @@
 use ast;
-use ast::HasToken;
-use object;
 use object::Object;
-use parser;
-use lexer;
 use environment::Environment;
 use std::rc::Rc;
-use std::rc;
 
 struct Evaluator {}
 
@@ -94,7 +89,7 @@ impl Evaluator {
 
             Prefix(ref prefix) => {
                 let right = self.visit_expr(&*prefix.right, env)?;
-                self.visit_prefix_expression(prefix.operator.as_str(), &*right, env)
+                self.visit_prefix_expression(prefix.operator.as_str(), &*right)
             }
 
             Infix(ref infix) => {
@@ -195,7 +190,6 @@ impl Evaluator {
         &self,
         op: &str,
         right: &Object,
-        env: &mut Environment,
     ) -> ObjectRcResult {
         let result = match op {
             "!" => eval_bang_prefix_op_exp(right),
@@ -283,6 +277,8 @@ pub fn eval(node: &ast::Node, env: &mut Environment) -> ObjectRcResult {
 }
 #[cfg(test)]
 mod tests {
+    use parser;
+    use object;
     use super::*;
 
     #[test]
@@ -321,7 +317,7 @@ addTwo(2);";
         let input = "fn(x) { x + 2; };";
         let mut env = Environment::new();
         let evaluated = assert_eval(input, &mut env);
-        let func = assert_function_obj(evaluated.as_ref(), vec!["x"], "(x + 2)");
+        assert_function_obj(evaluated.as_ref(), vec!["x"], "(x + 2)");
     }
 
     #[test]

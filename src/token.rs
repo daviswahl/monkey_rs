@@ -1,3 +1,4 @@
+#[allow(non_camel_case_types)]
 #[derive(Debug, PartialEq, Clone)]
 pub enum Token {
     ILLEGAL,
@@ -97,6 +98,7 @@ pub fn assign_ident(s: String) -> Token {
         None => Token::IDENT(s),
     }
 }
+
 pub fn cmp(l: &Token, r: &Token) -> bool {
     use self::Token::*;
     match (l, r) {

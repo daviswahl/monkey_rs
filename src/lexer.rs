@@ -209,9 +209,6 @@ if (5 < 10) {
 
 \"foo\";
 \"foo-bar\";";
-
-
-
         let mut l = Lexer::new(input);
 
         let tests = vec![
