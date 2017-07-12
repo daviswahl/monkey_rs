@@ -33,7 +33,7 @@ impl fmt::Display for Object {
                 format!("fn ({}) {{ {} }}", params, body)
             },
             StringLiteral(ref s) => s.to_string(),
-            Null => String::from("NULL"),
+            Null => return Ok(()),
             BuiltinFunction(ref b) => b.literal(),
             ArrayLiteral(ref elements) => {
                 let elems = elements.iter().map(|p| p.to_string()).collect::<Vec<String>>().join(",");

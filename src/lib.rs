@@ -6,7 +6,7 @@ mod token;
 mod lexer;
 mod ast;
 mod parser;
-mod object;
+pub mod object;
 mod evaluator;
 mod builtin;
 pub mod environment;

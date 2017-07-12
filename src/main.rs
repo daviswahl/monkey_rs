@@ -1,6 +1,7 @@
 extern crate monkey_parser;
 
 use monkey_parser::environment::Environment;
+use monkey_parser::object;
 
 fn main() {
     repl()
@@ -14,9 +15,14 @@ fn repl() {
 
     while let Ok(_) = io::stdin().read_line(&mut input) {
         match monkey_parser::eval(input.as_str(), &mut env) {
-            Ok(result) => println!("{}", result),
+            Ok(result) => {
+                match *result {
+                    object::Object::Null => (),
+                    _ => println!("{}", result),
+                }
+            }
             Err(e) => println!("Error: {}", e),
         }
-
+        input.clear();
     }
 }

@@ -2,6 +2,8 @@ use ast;
 use object::{Object, ObjectRcResult, ObjectResult, ObjectsResult};
 use environment::Environment;
 use std::rc::Rc;
+use std::io::Stderr;
+
 use builtin;
 
 struct Evaluator {}
@@ -126,8 +128,30 @@ impl Evaluator {
             Builtin(ref builtin) => Ok(Rc::new(Object::BuiltinFunction(builtin.clone()))),
 
             Array(ref exp) => self.visit_array_expression(exp, env),
+
+            Index(ref exp) => self.visit_index_expression(exp, env),
             ref expr => Err(format!("Unimplemented: {:?}", expr)),
         }
+    }
+
+    fn visit_index_expression(&self, exp: &ast::IndexExpression, env: &mut Environment) -> ObjectRcResult {
+        self.visit_expr(&*exp.left, env).and_then(|left| {
+            if let Object::ArrayLiteral(ref array) = *left {
+               self.visit_expr(&*exp.index, env).and_then(|index| {
+                    if let Object::Integer(i) = *index {
+                        if i <= array.len() as i64 {
+                            Ok(array[i as usize].clone())
+                        } else {
+                            Err(format!("error, indexed out of range: {}, length: {}", i, array.len()))
+                        }
+                    } else {
+                        Err(format!("cannot index out of array with type: {}", index))
+                    }
+               })
+            } else {
+                return Err(format!("Expected array literal, got: {}", left))
+            }
+        })
     }
 
     fn visit_array_expression(&self, exp: &ast::ArrayLiteral, env: &mut Environment) -> ObjectRcResult {
@@ -297,6 +321,20 @@ mod tests {
     use object;
     use super::*;
 
+    #[test]
+    fn test_array_indexing() {
+       let tests = vec![
+           ("[1,2,3][0]", 1),
+           ("let arr = [1,2,3]; arr[0]", 1),
+           ("let arr = [1,2,3]; arr[2]", 3),
+           ("let arr = [1,2,3]; let i = 0; arr[i];", 1),
+       ] ;
+
+        for t in tests {
+            let mut env = Environment::new();
+            assert_integer(assert_eval(t.0, &mut env).as_ref(), t.1)
+        }
+    }
     #[test]
     fn test_array_literals() {
         let tests =   vec![
