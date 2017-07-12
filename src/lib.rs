@@ -8,6 +8,7 @@ mod ast;
 mod parser;
 mod object;
 mod evaluator;
+mod builtin;
 pub mod environment;
 use object::Object;
 use std::rc::Rc;

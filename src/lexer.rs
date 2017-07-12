@@ -215,7 +215,10 @@ if (5 < 10) {
 
 \"foo\";
 \"foo\" ++ \"bar\";
-\"foo-bar\";";
+\"foo-bar\";\
+len(4,5);
+len(\"foobar\");
+";
         let mut l = Lexer::new(input);
 
         let tests = vec![
@@ -307,6 +310,20 @@ if (5 < 10) {
             tok(token::Token::SEMICOLON, ";"),
 
             tok(token::Token::STRING("foo-bar".to_string()), "foo-bar"),
+            tok(token::Token::SEMICOLON, ";"),
+
+            tok(token::Token::BUILTIN("len".to_string()), "len"),
+            tok(token::Token::LPAREN, "("),
+            tok(token::Token::INT("4".to_string()), "4"),
+            tok(token::Token::COMMA, ","),
+            tok(token::Token::INT("5".to_string()), "5"),
+            tok(token::Token::RPAREN, ")"),
+            tok(token::Token::SEMICOLON, ";"),
+
+            tok(token::Token::BUILTIN("len".to_string()), "len"),
+            tok(token::Token::LPAREN, "("),
+            tok(token::Token::STRING("foobar".to_string()), "foobar"),
+            tok(token::Token::RPAREN, ")"),
             tok(token::Token::SEMICOLON, ";"),
             tok(token::Token::EOF, "EOF"),
         ];

@@ -1,3 +1,5 @@
+use builtin::is_builtin;
+
 #[allow(non_camel_case_types)]
 #[derive(Debug, PartialEq, Clone)]
 pub enum Token {
@@ -6,6 +8,8 @@ pub enum Token {
     IDENT(String),
     STRING(String),
     INT(String),
+
+    BUILTIN(String),
 
     ASSIGN,
     PLUS,
@@ -48,6 +52,7 @@ impl Token {
 
             &Token::INT(ref i) => return i.clone(),
             &Token::STRING(ref i) => return i.clone(),
+            &Token::BUILTIN(ref i) => return i.clone(),
 
             &Token::ASSIGN => "=",
             &Token::PLUS => "+",
@@ -68,7 +73,6 @@ impl Token {
             &Token::RPAREN => ")",
             &Token::LBRACE => "{",
             &Token::RBRACE => "}",
-
             &Token::FUNCTION => "FUNCTION",
             &Token::LET => "LET",
             &Token::TRUE => "TRUE",
@@ -76,6 +80,7 @@ impl Token {
             &Token::IF => "IF",
             &Token::ELSE => "ELSE",
             &Token::RETURN => "RETURN",
+
 
             &Token::EQ => "==",
             &Token::NOT_EQ => "!=",
@@ -95,8 +100,9 @@ const KEYWORDS: [(&'static str, Token); 7] = [
 ];
 
 pub fn assign_ident(s: String) -> Token {
-    match KEYWORDS.iter().find(|x| x.0 == s.as_str()) {
-        Some(s) => s.1.clone(),
+    match KEYWORDS.iter().find(|x| x.0 == s.as_str()).map(|s| s.1.clone()) {
+        Some(s) => s.clone(),
+        None if is_builtin(&s) => Token::BUILTIN(s),
         None => Token::IDENT(s),
     }
 }
