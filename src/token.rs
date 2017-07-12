@@ -1,73 +1,106 @@
-
 pub type TokenType = &'static str;
 
+#[derive(Debug, PartialEq, Clone)]
+pub enum Token {
+    ILLEGAL,
+    EOF,
+    IDENT(String),
 
-pub const ILLEGAL: TokenType = "ILLEGAL";
-pub const EOF: TokenType = "EOF";
-pub const IDENT: TokenType = "IDENT";
+    INT(String),
 
-pub const INT: TokenType = "INT";
+    ASSIGN,
+    PLUS,
+    MINUS,
+    BANG,
+    ASTERISK,
+    SLASH,
 
-// Operators
-pub const ASSIGN: TokenType = "=";
-pub const PLUS: TokenType = "+";
-pub const MINUS: TokenType = "-";
-pub const BANG: TokenType = "!";
-pub const ASTERISK: TokenType = "*";
-pub const SLASH: TokenType = "/";
+    LT,
+    GT,
 
-pub const LT: TokenType = "<";
-pub const GT: TokenType = ">";
+    COMMA,
+    SEMICOLON,
 
-pub const COMMA: TokenType = ",";
-pub const SEMICOLON: TokenType = ";";
+    LPAREN,
+    RPAREN,
+    LBRACE,
+    RBRACE,
 
-// Grouping
-pub const LPAREN: TokenType = "(";
-pub const RPAREN: TokenType = ")";
-pub const LBRACE: TokenType = "{";
-pub const RBRACE: TokenType = "}";
+    FUNCTION,
+    LET,
+    TRUE,
+    FALSE,
+    IF,
+    ELSE,
+    RETURN,
 
-// Keywords
-pub const FUNCTION: TokenType = "FUNCTION";
-pub const LET: TokenType = "LET";
-pub const TRUE: TokenType = "TRUE";
-pub const FALSE: TokenType = "FALSE";
-pub const IF: TokenType = "IF";
-pub const ELSE: TokenType = "ELSE";
-pub const RETURN: TokenType = "RETURN";
+    EQ,
+    NOT_EQ,
+}
 
-// Boolean
-pub const EQ: TokenType = "==";
-pub const NOT_EQ: TokenType = "!=";
+impl Token {
+    pub fn literal(&self) -> String {
+        let s = match self {
+            &Token::ILLEGAL => "ILLEGAL",
+            &Token::EOF => "EOF",
+            &Token::IDENT(ref i) => return i.clone(),
 
-pub fn make(typ: TokenType, lit: &'static str) -> Token {
-    Token {
-        typ: typ,
-        literal: String::from(lit),
+            &Token::INT(ref i) => return i.clone(),
+
+            &Token::ASSIGN => "=",
+            &Token::PLUS => "+",
+            &Token::MINUS => "-",
+            &Token::BANG => "!",
+            &Token::ASTERISK => "*",
+            &Token::SLASH => "/",
+
+            &Token::LT => "<",
+            &Token::GT => ">",
+
+            &Token::COMMA => ",",
+            &Token::SEMICOLON => ";",
+
+            &Token::LPAREN => "(",
+            &Token::RPAREN => ")",
+            &Token::LBRACE => "{",
+            &Token::RBRACE => "}",
+
+            &Token::FUNCTION => "FUNCTION",
+            &Token::LET => "LET",
+            &Token::TRUE => "TRUE",
+            &Token::FALSE => "FALSE",
+            &Token::IF => "IF",
+            &Token::ELSE => "ELSE",
+            &Token::RETURN => "RETURN",
+
+            &Token::EQ => "==",
+            &Token::NOT_EQ => "!=",
+        };
+        String::from(s)
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
-pub struct Token {
-    pub typ: TokenType,
-    pub literal: String,
-}
-
-
-const KEYWORDS: [(&'static str, TokenType); 7] = [
-    ("fn", FUNCTION),
-    ("let", LET),
-    ("true", TRUE),
-    ("false", FALSE),
-    ("return", RETURN),
-    ("if", IF),
-    ("else", ELSE),
+const KEYWORDS: [(&'static str, Token); 7] = [
+    ("fn", Token::FUNCTION),
+    ("let", Token::LET),
+    ("true", Token::TRUE),
+    ("false", Token::FALSE),
+    ("return", Token::RETURN),
+    ("if", Token::IF),
+    ("else", Token::ELSE),
 ];
 
-pub fn lookup_ident(s: &str) -> TokenType {
-    match KEYWORDS.iter().find(|x| x.0 == s) {
-        Some(s) => s.1,
-        None => IDENT
+pub fn assign_ident(s: String) -> Token {
+    match KEYWORDS.iter().find(|x| x.0 == s.as_str()) {
+        Some(s) => s.1.clone(),
+        None => Token::IDENT(s),
+    }
+}
+pub fn compare_tokens(l: &Token, r: &Token) -> bool {
+    use self::Token::*;
+    match (l, r) {
+        (&IDENT(_), &IDENT(_)) => true,
+        (&INT(_), &INT(_)) => true,
+        _ => l == r
     }
 }

@@ -1,5 +1,5 @@
 use ast;
-use ast::AstNode;
+use ast::HasToken;
 use object;
 use object::Object;
 use parser;

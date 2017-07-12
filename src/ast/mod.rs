@@ -7,8 +7,9 @@ pub enum Node {
     Expression(Expression),
     Program(Program),
 }
-impl AstNode for Node {
-    fn token_literal(&self) -> &str {
+
+impl HasToken for Node {
+    fn token_literal(&self) -> String {
         match *self {
             Node::Statement(ref node) => node.token_literal(),
             Node::Expression(ref node) => node.token_literal(),
@@ -26,8 +27,8 @@ impl fmt::Display for Node {
         }
     }
 }
-pub trait AstNode: fmt::Display {
-    fn token_literal(&self) -> &str;
+pub trait HasToken: fmt::Display {
+    fn token_literal(&self) -> String;
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -38,8 +39,8 @@ pub enum Statement {
     Block(BlockStatement),
 }
 
-impl AstNode for Statement {
-    fn token_literal(&self) -> &str {
+impl HasToken for Statement {
+    fn token_literal(&self) -> String {
         match *self {
             Statement::Let(ref stmt) => stmt.token_literal(),
             Statement::Return(ref stmt) => stmt.token_literal(),
@@ -74,8 +75,8 @@ pub enum Expression {
     Call(CallExpression),
 }
 
-impl AstNode for Expression {
-    fn token_literal(&self) -> &str {
+impl HasToken for Expression {
+    fn token_literal(&self) -> String {
         match *self {
             Expression::Unit(ref stmt) => stmt.token_literal(),
             Expression::Identifier(ref stmt) => stmt.token_literal(),
@@ -111,12 +112,12 @@ pub struct Program {
     pub statements: Vec<Node>,
 }
 
-impl AstNode for Program {
-    fn token_literal(&self) -> &str {
+impl HasToken for Program {
+    fn token_literal(&self) -> String {
         if self.statements.len() >= 1 {
             return self.statements[0].token_literal();
         }
-        ""
+        "".to_string()
     }
 }
 
@@ -136,10 +137,10 @@ pub struct IdentifierExpression {
 }
 
 
-impl AstNode for IdentifierExpression {
+impl HasToken for IdentifierExpression {
 
-    fn token_literal(&self) -> &str {
-        self.token.literal.as_str()
+    fn token_literal(&self) -> String {
+        self.token.literal()
     }
 }
 
@@ -151,7 +152,7 @@ impl fmt::Display for IdentifierExpression {
 
 impl IdentifierExpression {
     pub fn new(t: token::Token) -> IdentifierExpression {
-        let lit = t.literal.clone();
+        let lit = t.literal();
         IdentifierExpression {
             token: t,
             value: lit,
@@ -167,9 +168,9 @@ pub struct LetStatement {
     pub value: Box<Expression>,
 }
 
-impl AstNode for LetStatement {
-    fn token_literal(&self) -> &str {
-        self.token.literal.as_str()
+impl HasToken for LetStatement {
+    fn token_literal(&self) -> String {
+        self.token.literal()
     }
 }
 
@@ -198,10 +199,10 @@ impl fmt::Display for ReturnStatement {
     }
 }
 
-impl AstNode for ReturnStatement {
+impl HasToken for ReturnStatement {
 
-    fn token_literal(&self) -> &str {
-        self.token.literal.as_str()
+    fn token_literal(&self) -> String {
+        self.token.literal()
     }
 }
 
@@ -211,10 +212,10 @@ pub struct ExpressionStatement {
     pub value: Expression,
 }
 
-impl AstNode for ExpressionStatement {
+impl HasToken for ExpressionStatement {
 
-    fn token_literal(&self) -> &str {
-        self.token.literal.as_str()
+    fn token_literal(&self) -> String {
+        self.token.literal()
     }
 }
 
@@ -227,10 +228,10 @@ impl fmt::Display for ExpressionStatement {
 #[derive(Debug, PartialEq, Clone)]
 pub struct UnitExpression();
 
-impl AstNode for UnitExpression {
+impl HasToken for UnitExpression {
 
-    fn token_literal(&self) -> &str {
-        "()"
+    fn token_literal(&self) -> String {
+        "()".to_string()
     }
 }
 
@@ -246,9 +247,9 @@ pub struct IntegerLiteral {
     pub value: i64,
 }
 
-impl AstNode for IntegerLiteral {
-    fn token_literal(&self) -> &str {
-        self.token.literal.as_str()
+impl HasToken for IntegerLiteral {
+    fn token_literal(&self) -> String {
+        self.token.literal()
     }
 }
 
@@ -265,10 +266,9 @@ pub struct PrefixExpression {
     pub right: Box<Expression>,
 }
 
-impl AstNode for PrefixExpression {
-
-    fn token_literal(&self) -> &str {
-        self.token.literal.as_str()
+impl HasToken for PrefixExpression {
+    fn token_literal(&self) -> String {
+        self.token.literal()
     }
 }
 
@@ -286,9 +286,9 @@ pub struct InfixExpression {
     pub right: Box<Expression>,
 }
 
-impl AstNode for InfixExpression {
-    fn token_literal(&self) -> &str {
-        self.token.literal.as_str()
+impl HasToken for InfixExpression {
+    fn token_literal(&self) -> String {
+        self.token.literal()
     }
 }
 
@@ -304,9 +304,9 @@ pub struct BooleanExpression {
     pub value: bool,
 }
 
-impl AstNode for BooleanExpression {
-    fn token_literal(&self) -> &str {
-        self.token.literal.as_str()
+impl HasToken for BooleanExpression {
+    fn token_literal(&self) -> String {
+        self.token.literal()
     }
 }
 
@@ -324,9 +324,9 @@ pub struct IfExpression {
     pub alternative: Option<Box<Statement>>,
 }
 
-impl AstNode for IfExpression {
-    fn token_literal(&self) -> &str {
-        self.token.literal.as_str()
+impl HasToken for IfExpression {
+    fn token_literal(&self) -> String {
+        self.token.literal()
     }
 }
 
@@ -347,10 +347,10 @@ pub struct BlockStatement {
     pub statements: Vec<Node>,
 }
 
-impl AstNode for BlockStatement {
+impl HasToken for BlockStatement {
 
-    fn token_literal(&self) -> &str {
-        self.token.literal.as_str()
+    fn token_literal(&self) -> String {
+        self.token.literal()
     }
 }
 impl fmt::Display for BlockStatement {
@@ -369,10 +369,10 @@ pub struct FunctionLiteral {
     pub body: Box<Statement>,
 }
 
-impl AstNode for FunctionLiteral {
+impl HasToken for FunctionLiteral {
 
-    fn token_literal(&self) -> &str {
-        self.token.literal.as_str()
+    fn token_literal(&self) -> String {
+        self.token.literal()
     }
 }
 
@@ -394,10 +394,9 @@ pub struct CallExpression {
     pub arguments: Vec<Box<Expression>>,
 }
 
-impl AstNode for CallExpression {
-
-    fn token_literal(&self) -> &str {
-        self.token.literal.as_str()
+impl HasToken for CallExpression {
+    fn token_literal(&self) -> String {
+        self.token.literal()
     }
 }
 

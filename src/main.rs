@@ -16,7 +16,7 @@ fn repl() {
     while let Ok(_) = io::stdin().read_line(&mut input) {
         match monkey_parser::eval(input.as_str(), &mut env) {
             Ok(result) => println!("{}", result),
-            Err(e) => println!("Error: {}", e)
+            Err(e) => println!("Error: {}", e),
         }
 
     }

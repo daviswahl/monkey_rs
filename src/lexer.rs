@@ -94,47 +94,44 @@ impl <'a>Lexer<'a> {
     }
 
     pub fn next_token(&mut self) -> token::Token {
+        use token::Token::*;
         self.skip_whitespace();
         let token = match self.ch {
 
             b'=' if self.next_eq(b'=') => {
                 self.read_char();
-                token::make(token::EQ, "==")
+                EQ
             },
 
-            b'=' => token::make(token::ASSIGN, "="),
+            b'=' => ASSIGN,
 
-            b'+' => token::make(token::PLUS, "+"),
-            b'-' => token::make(token::MINUS, "-"),
-            b'/' => token::make(token::SLASH, "/"),
-            b'*' => token::make(token::ASTERISK, "*"),
+            b'+' => PLUS,
+            b'-' => MINUS,
+            b'/' => SLASH,
+            b'*' => ASTERISK,
 
             b'!' if self.next_eq(b'=') => {
                 self.read_char();
-                token::make(token::NOT_EQ, "!=")
+                NOT_EQ
             },
-            b'!' => token::make(token::BANG, "!"),
+            b'!' => BANG,
 
-            b'<' => token::make(token::LT, "<"),
-            b'>' => token::make(token::GT, ">"),
-            b'(' => token::make(token::LPAREN, "("),
-            b')' => token::make(token::RPAREN, ")"),
-            b'{' => token::make(token::LBRACE, "{"),
-            b'}' => token::make(token::RBRACE, "}"),
-            b',' => token::make(token::COMMA, ","),
-            b';' => token::make(token::SEMICOLON, ";"),
-            b'\0' => token::make(token::EOF, ""),
+            b'<' => LT,
+            b'>' => GT,
+            b'(' => LPAREN,
+            b')' => RPAREN,
+            b'{' => LBRACE,
+            b'}' => RBRACE,
+            b',' => COMMA,
+            b';' => SEMICOLON,
+            b'\0' => EOF,
 
-            x if is_letter(x) => {
-                let literal = self.read_identifier();
-                let tkn = token::lookup_ident(&literal);
-                return token::Token{typ: tkn, literal: literal}
-            }
+            x if is_letter(x) => return token::assign_ident(self.read_identifier()),
 
             x if is_digit(x) => {
-                return token::Token{typ: token::INT, literal: self.read_digit()}
+                return INT(self.read_digit());
             }
-            _ => token::make(token::ILLEGAL, "ILLEGAL"),
+            _ => ILLEGAL,
         };
         self.read_char();
         token
@@ -145,7 +142,7 @@ impl <'a>Lexer<'a> {
 mod tests {
     use super::*;
 
-    fn tok(t: token::TokenType, s: &str) -> (::token::TokenType, String)  {
+    fn tok(t: token::Token, s: &str) -> (token::Token, String)  {
         (t, String::from(s))
     }
 
@@ -156,21 +153,21 @@ mod tests {
         let mut l = Lexer::new(input);
 
         let tests = vec![
-            tok(token::ASSIGN, "="),
-            tok(::token::PLUS, "+"),
-            tok(::token::LPAREN, "("),
-            tok(::token::RPAREN, ")"),
-            tok(::token::LBRACE, "{"),
-            tok(::token::RBRACE, "}"),
-            tok(::token::COMMA, ","),
-            tok(::token::SEMICOLON, ";"),
-            tok(::token::EOF, ""),
+            tok(token::Token::ASSIGN, "="),
+            tok(::token::Token::PLUS, "+"),
+            tok(::token::Token::LPAREN, "("),
+            tok(::token::Token::RPAREN, ")"),
+            tok(::token::Token::LBRACE, "{"),
+            tok(::token::Token::RBRACE, "}"),
+            tok(::token::Token::COMMA, ","),
+            tok(::token::Token::SEMICOLON, ";"),
+            tok(::token::Token::EOF, "EOF"),
         ];
 
         for t in tests {
             let tok = l.next_token();
-            assert_eq!(tok.typ, t.0);
-            assert!(tok.literal == t.1);
+            assert!(token::compare_tokens(&tok, &t.0));
+            assert_eq!(tok.literal(), t.1);
         }
     }
 
@@ -203,91 +200,91 @@ if (5 < 10) {
         let mut l = Lexer::new(input);
 
         let tests = vec![
-            tok(token::LET, "let"),
-            tok(token::IDENT, "five"),
-            tok(token::ASSIGN, "="),
-            tok(token::INT, "5"),
-            tok(token::SEMICOLON, ";"),
-            tok(token::LET, "let"),
-            tok(token::IDENT, "ten"),
-            tok(token::ASSIGN, "="),
-            tok(token::INT, "10"),
-            tok(token::SEMICOLON, ";"),
-            tok(token::LET, "let"),
-            tok(token::IDENT, "add"),
-            tok(token::ASSIGN, "="),
-            tok(token::FUNCTION, "fn"),
-            tok(token::LPAREN, "("),
-            tok(token::IDENT, "x"),
-            tok(token::COMMA, ","),
-            tok(token::IDENT, "y"),
-            tok(token::RPAREN, ")"),
-            tok(token::LBRACE, "{"),
-            tok(token::IDENT, "x"),
-            tok(token::PLUS, "+"),
-            tok(token::IDENT, "y"),
-            tok(token::SEMICOLON, ";"),
-            tok(token::RBRACE, "}"),
-            tok(token::SEMICOLON, ";"),
-            tok(token::LET, "let"),
-            tok(token::IDENT, "result"),
-            tok(token::ASSIGN, "="),
-            tok(token::IDENT, "add"),
-            tok(token::LPAREN, "("),
-            tok(token::IDENT, "five"),
-            tok(token::COMMA, ","),
-            tok(token::IDENT, "ten"),
-            tok(token::RPAREN, ")"),
-            tok(token::SEMICOLON, ";"),
+            tok(token::Token::LET, "LET"),
+            tok(token::Token::IDENT("five".to_string()), "five"),
+            tok(token::Token::ASSIGN, "="),
+            tok(token::Token::INT("5".to_string()), "5"),
+            tok(token::Token::SEMICOLON, ";"),
+            tok(token::Token::LET, "LET"),
+            tok(token::Token::IDENT("ten".to_string()), "ten"),
+            tok(token::Token::ASSIGN, "="),
+            tok(token::Token::INT("10".to_string()), "10"),
+            tok(token::Token::SEMICOLON, ";"),
+            tok(token::Token::LET, "LET"),
+            tok(token::Token::IDENT("add".to_string()), "add"),
+            tok(token::Token::ASSIGN, "="),
+            tok(token::Token::FUNCTION, "FUNCTION"),
+            tok(token::Token::LPAREN, "("),
+            tok(token::Token::IDENT("x".to_string()), "x"),
+            tok(token::Token::COMMA, ","),
+            tok(token::Token::IDENT("y".to_string()), "y"),
+            tok(token::Token::RPAREN, ")"),
+            tok(token::Token::LBRACE, "{"),
+            tok(token::Token::IDENT("x".to_string()), "x"),
+            tok(token::Token::PLUS, "+"),
+            tok(token::Token::IDENT("y".to_string()), "y"),
+            tok(token::Token::SEMICOLON, ";"),
+            tok(token::Token::RBRACE, "}"),
+            tok(token::Token::SEMICOLON, ";"),
+            tok(token::Token::LET, "LET"),
+            tok(token::Token::IDENT("result".to_string()), "result"),
+            tok(token::Token::ASSIGN, "="),
+            tok(token::Token::IDENT("add".to_string()), "add"),
+            tok(token::Token::LPAREN, "("),
+            tok(token::Token::IDENT("five".to_string()), "five"),
+            tok(token::Token::COMMA, ","),
+            tok(token::Token::IDENT("ten".to_string()), "ten"),
+            tok(token::Token::RPAREN, ")"),
+            tok(token::Token::SEMICOLON, ";"),
 
-            tok(token::BANG, "!"),
-            tok(token::MINUS, "-"),
-            tok(token::SLASH, "/"),
-            tok(token::ASTERISK, "*"),
-            tok(token::INT, "5"),
-            tok(token::SEMICOLON, ";"),
+            tok(token::Token::BANG, "!"),
+            tok(token::Token::MINUS, "-"),
+            tok(token::Token::SLASH, "/"),
+            tok(token::Token::ASTERISK, "*"),
+            tok(token::Token::INT("5".to_string()), "5"),
+            tok(token::Token::SEMICOLON, ";"),
 
-            tok(token::INT, "5"),
-            tok(token::LT, "<"),
-            tok(token::INT, "10"),
-            tok(token::GT, ">"),
-            tok(token::INT, "5"),
-            tok(token::SEMICOLON, ";"),
+            tok(token::Token::INT("5".to_string()), "5"),
+            tok(token::Token::LT, "<"),
+            tok(token::Token::INT("10".to_string()), "10"),
+            tok(token::Token::GT, ">"),
+            tok(token::Token::INT("5".to_string()), "5"),
+            tok(token::Token::SEMICOLON, ";"),
 
-            tok(token::IF, "if"),
-            tok(token::LPAREN, "("),
-            tok(token::INT, "5"),
-            tok(token::LT, "<"),
-            tok(token::INT, "10"),
-            tok(token::RPAREN, ")"),
-            tok(token::LBRACE, "{"),
-            tok(token::RETURN, "return"),
-            tok(token::TRUE, "true"),
-            tok(token::SEMICOLON, ";"),
-            tok(token::RBRACE, "}"),
-            tok(token::ELSE, "else"),
-            tok(token::LBRACE, "{"),
-            tok(token::RETURN, "return"),
-            tok(token::FALSE, "false"),
-            tok(token::SEMICOLON, ";"),
-            tok(token::RBRACE, "}"),
+            tok(token::Token::IF, "IF"),
+            tok(token::Token::LPAREN, "("),
+            tok(token::Token::INT("5".to_string()), "5"),
+            tok(token::Token::LT, "<"),
+            tok(token::Token::INT("10".to_string()), "10"),
+            tok(token::Token::RPAREN, ")"),
+            tok(token::Token::LBRACE, "{"),
+            tok(token::Token::RETURN, "RETURN"),
+            tok(token::Token::TRUE, "TRUE"),
+            tok(token::Token::SEMICOLON, ";"),
+            tok(token::Token::RBRACE, "}"),
+            tok(token::Token::ELSE, "ELSE"),
+            tok(token::Token::LBRACE, "{"),
+            tok(token::Token::RETURN, "RETURN"),
+            tok(token::Token::FALSE, "FALSE"),
+            tok(token::Token::SEMICOLON, ";"),
+            tok(token::Token::RBRACE, "}"),
 
-            tok(token::INT, "10"),
-            tok(token::EQ, "=="),
-            tok(token::INT, "10"),
-            tok(token::SEMICOLON, ";"),
+            tok(token::Token::INT("10".to_string()), "10"),
+            tok(token::Token::EQ, "=="),
+            tok(token::Token::INT("10".to_string()), "10"),
+            tok(token::Token::SEMICOLON, ";"),
 
-            tok(token::INT, "10"),
-            tok(token::NOT_EQ, "!="),
-            tok(token::INT, "9"),
-            tok(token::SEMICOLON, ";"),
-            tok(token::EOF, ""),
+            tok(token::Token::INT("10".to_string()), "10"),
+            tok(token::Token::NOT_EQ, "!="),
+            tok(token::Token::INT("9".to_string()), "9"),
+            tok(token::Token::SEMICOLON, ";"),
+            tok(token::Token::EOF, "EOF"),
         ];
 
         for t in tests {
             let tok = l.next_token();
-            assert_eq!(tok.typ, t.0);
-            assert_eq!(tok.literal, t.1);
+            assert!(token::compare_tokens(&tok, &t.0));
+            assert_eq!(tok.literal(), t.1);
         }
     }
 
