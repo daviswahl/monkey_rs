@@ -12,7 +12,7 @@ pub struct Parser<'a> {
 }
 
 #[derive(PartialEq, Debug)]
-struct ParseError {
+pub struct ParseError {
     expected: Token,
     actual: Token,
     pos: usize,
@@ -34,7 +34,7 @@ impl Precedence {
         match t {
             &Token::EQ | &Token::NOT_EQ => Precedence::EQUALS,
             &Token::LT | &Token::GT => Precedence::LESSGREATER,
-            &Token::PLUS | &Token::MINUS => Precedence::SUM,
+            &Token::PLUS | &Token::MINUS | &Token::CONCAT => Precedence::SUM,
             &Token::SLASH | &Token::ASTERISK => Precedence::PRODUCT,
             &Token::LPAREN => Precedence::CALL,
             _ => Precedence::LOWEST,
@@ -42,7 +42,7 @@ impl Precedence {
     }
 }
 
-pub fn parse(s: &str) -> ast::Node {
+pub fn parse(s: &str) -> Result<ast::Node, Vec<ParseError>> {
     let lexer = lexer::Lexer::new(s);
     Parser::new(lexer).parse()
 }
@@ -119,7 +119,7 @@ impl<'a> Parser<'a> {
 
         while !self.peek_token_is(&SEMICOLON) && p < self.peek_precedence() {
             left = left.and_then(|exp| match self.peek_token {
-                PLUS | MINUS | SLASH | ASTERISK | EQ | NOT_EQ | LT | GT => {
+                PLUS | MINUS | SLASH | ASTERISK | EQ | NOT_EQ | LT | GT | CONCAT => {
                     self.next_token();
                     self.parse_infix_expression(exp)
                 }
@@ -292,9 +292,7 @@ impl<'a> Parser<'a> {
 
     fn parse_string(&self) -> Option<ast::Expression> {
         let tok = self.cur_token.clone();
-        Some(ast::Expression::String(ast::StringLiteral {
-            token: tok,
-        }))
+        Some(ast::Expression::String(ast::StringLiteral { token: tok }))
     }
     fn parse_int(&self) -> Option<ast::Expression> {
         let tok = self.cur_token.clone();
@@ -419,17 +417,19 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub fn parse(&mut self) -> ast::Node {
+    pub fn parse(mut self) -> Result<ast::Node, Vec<ParseError>> {
         let mut statements: Vec<ast::Node> = vec![];
 
-
+        if !self.errors.is_empty() {
+            return Err(self.errors);
+        }
         while self.cur_token != Token::EOF {
             if let Some(s) = self.parse_statement() {
                 statements.push(s);
             }
             self.next_token();
         }
-        ast::Node::Program(ast::Program { statements: statements })
+        Ok(ast::Node::Program(ast::Program { statements: statements }))
     }
 }
 
@@ -489,24 +489,24 @@ mod tests {
         })
     }
 
-    fn test_no_errors(p: &Parser) {
-        if p.errors.len() > 0 {
-            println!("Expected no errors, got {:?}", p.errors);
-            assert!(false)
-        }
+    fn test_no_errors(p: Result<ast::Node, Vec<ParseError>>)  -> ast::Node {
+        assert!(p.is_ok());
+        p.unwrap()
     }
-    fn assert_error(p: &Parser, err: ParseError) {
-        let b = p.errors.iter().any(|e| *e == err);
-        if !b {
-            let err = format!("Expected {:?} to be in {:?}", err, p.errors);
-            assert!(b, err);
+    fn assert_error(p: &Result<ast::Node, Vec<ParseError>>, err: ParseError) {
+        if let &Err(ref errors) = p {
+            let b = errors.iter().any(|e| *e == err);
+            if !b {
+                let err = format!("Expected {:?} to be in {:?}", err, errors);
+                assert!(b, err);
+            }
         }
 
     }
 
     #[test]
     fn test_parse_let() {
-        let mut p = make_parser(
+        let p = make_parser(
             "
 let x = 5;
 let y = 10;
@@ -517,8 +517,8 @@ let y 83353;
 let 8331254;
 ",
         );
-
-        assert_program(&p.parse(), |program| {
+        let result = p.parse();
+        assert_program(result.as_ref().unwrap(), |program| {
             assert_eq!(program.statements.len(), 7);
 
             let tests = vec![("x"), ("y"), ("foobar"), ("batz")];
@@ -528,7 +528,7 @@ let 8331254;
                 assert_let(stmt, t, |_| {});
             }
             assert_error(
-                &p,
+                &result,
                 ParseError {
                     expected: IDENT("".to_string()),
                     actual: ASSIGN,
@@ -536,7 +536,7 @@ let 8331254;
                 },
             );
             assert_error(
-                &p,
+                &result,
                 ParseError {
                     expected: ASSIGN,
                     actual: INT("83353".to_string()),
@@ -544,7 +544,7 @@ let 8331254;
                 },
             );
             assert_error(
-                &p,
+                &result,
                 ParseError {
                     expected: IDENT("".to_string()),
                     actual: INT("8331254".to_string()),
@@ -565,7 +565,7 @@ let 8331254;
         ];
 
         for test in tests {
-            assert_program(&make_parser(test.0).parse(), |program| {
+            assert_program(&make_parser(test.0).parse().unwrap(), |program| {
                 assert_eq!(program.statements.len(), 1);
                 assert_return(&program.statements[0], |stmt| {
                     assert_eq!(stmt.value.to_string(), test.1);
@@ -576,8 +576,9 @@ let 8331254;
 
     #[test]
     fn test_parse_string() {
-        let mut p = make_parser("\"foobar\"");
-        assert_program(&p.parse(), |program| {
+
+        let p = make_parser("\"foobar\"");
+        assert_program(&p.parse().unwrap(), |program| {
             assert_statement_expression(&program.statements[0], |exp| {
                 assert_string(exp, "foobar");
             })
@@ -587,12 +588,12 @@ let 8331254;
 
     #[test]
     fn test_identifier_expression() {
-        let mut p = make_parser(
+        let p = make_parser(
             "
 foobar;
 ",
         );
-        assert_program(&p.parse(), |program| {
+        assert_program(&p.parse().unwrap(), |program| {
             assert_eq!(program.statements.len(), 1);
 
             assert_statement(&program.statements[0], |stmt| {
@@ -724,12 +725,12 @@ foobar;
 
     #[test]
     fn test_integer_expression() {
-        let mut p = make_parser(
+        let p = make_parser(
             "
 5;
 ",
         );
-        assert_program(&p.parse(), |program| {
+        assert_program(&p.parse().unwrap(), |program| {
             assert_eq!(program.statements.len(), 1);
             assert_statement_expression(&program.statements[0], |exp| { assert_integer(&exp, 5); })
         })
@@ -740,8 +741,8 @@ foobar;
         let tests = vec![("!5;", "!", 5), ("-15;", "-", 15)];
 
         for t in tests {
-            let mut p = make_parser(t.0);
-            assert_program(&p.parse(), |program| {
+            let p = make_parser(t.0);
+            assert_program(&p.parse().unwrap(), |program| {
                 assert_eq!(1, program.statements.len());
 
                 assert_statement_expression(&program.statements[0], |exp| {
@@ -769,8 +770,8 @@ foobar;
         ];
 
         for t in tests {
-            let mut p = make_parser(t.0);
-            assert_program(&p.parse(), |program| {
+            let p = make_parser(t.0);
+            assert_program(&p.parse().unwrap(), |program| {
                 assert_eq!(1, program.statements.len());
 
                 assert_statement_expression(&program.statements[0], |exp| {
@@ -812,10 +813,9 @@ foobar;
         ];
 
         for t in tests {
-            let mut p = make_parser(t.0);
-            assert_program(&p.parse(), |program| {
+            let prog = test_no_errors(make_parser(t.0).parse());
+            assert_program(&prog, |program| {
 
-                test_no_errors(&p);
                 assert_eq!(t.1, format!("{}", program));
             })
         }
@@ -824,9 +824,8 @@ foobar;
     #[test]
     fn test_if_expressions() {
         let input = "if (x < y) { x }";
-        let mut parser = make_parser(input);
-        let prog = parser.parse();
-        test_no_errors(&parser);
+        let parser = make_parser(input);
+        let prog = test_no_errors(parser.parse());
         assert_program(&prog, |program| {
 
 
@@ -850,9 +849,8 @@ foobar;
     #[test]
     fn test_if_else_expressions() {
         let input = "if (x < y) { x } else { y }";
-        let mut parser = make_parser(input);
-        let prog = parser.parse();
-        test_no_errors(&parser);
+        let parser = make_parser(input);
+        let prog = test_no_errors(parser.parse());
         assert_program(&prog, |program| {
             assert_statement_expression(&program.statements[0], |exp| {
                 test_if_expression(exp, |ifexp| {
@@ -880,9 +878,8 @@ foobar;
     #[test]
     fn test_function_literal() {
         let input = "fn(x, y) { x  + y }";
-        let mut parser = make_parser(input);
-        let prog = parser.parse();
-        test_no_errors(&parser);
+        let parser = make_parser(input);
+        let prog = test_no_errors(parser.parse());
         assert_program(&prog, |program| {
             assert_statement_expression(&program.statements[0], |exp| {
                 assert_fn_expression(exp, |fnexp| {
@@ -906,10 +903,8 @@ foobar;
     #[test]
     fn test_call_expression() {
         let input = "add(1, 2 * 3, 4 + 5);";
-        let mut parser = make_parser(input);
-        let prog = parser.parse();
-
-        test_no_errors(&parser);
+        let parser = make_parser(input);
+        let prog = test_no_errors(parser.parse());
 
         assert_program(&prog, |program| {
             assert_statement_expression(&program.statements[0], |exp| {
@@ -933,10 +928,8 @@ foobar;
     #[test]
     fn test_call_expression_2() {
         let input = "add(1);";
-        let mut parser = make_parser(input);
-        let prog = parser.parse();
-
-        test_no_errors(&parser);
+        let parser = make_parser(input);
+        let prog = test_no_errors(parser.parse());
 
         assert_program(&prog, |program| {
             assert_statement_expression(&program.statements[0], |exp| {
@@ -956,7 +949,7 @@ foobar;
         for test in tests {
             let prog = make_parser(test.0).parse();
 
-            assert_program(&prog, |program| {
+            assert_program(&prog.unwrap(), |program| {
                 assert_let(&program.statements[0], test.1, |let_stmt| {
                     assert_eq!(let_stmt.value.to_string(), test.2);
                 })

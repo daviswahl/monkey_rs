@@ -13,11 +13,13 @@ use object::Object;
 use std::rc::Rc;
 
 pub fn eval(s: &str, env: &mut environment::Environment) -> Result<Rc<Object>, String> {
-    let p = parse(s);
-    evaluator::eval(&p, env)
+    match parse(s) {
+        Ok(p) => evaluator::eval(&p, env),
+        Err(errs) => Err(format!("{:?}", errs)),
+    }
 }
 
-pub fn parse(s: &str) -> ast::Node {
+pub fn parse(s: &str) -> Result<ast::Node, Vec<parser::ParseError>> {
     parser::parse(s)
 }
 

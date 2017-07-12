@@ -13,6 +13,7 @@ pub enum Token {
     BANG,
     ASTERISK,
     SLASH,
+    CONCAT,
 
     LT,
     GT,
@@ -54,6 +55,7 @@ impl Token {
             &Token::BANG => "!",
             &Token::ASTERISK => "*",
             &Token::SLASH => "/",
+            &Token::CONCAT => "++",
 
             &Token::LT => "<",
             &Token::GT => ">",

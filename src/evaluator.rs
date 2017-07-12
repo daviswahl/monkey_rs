@@ -42,6 +42,16 @@ fn eval_infix_expression(op: &str, left: &Object, right: &Object) -> ObjectResul
                 x => return Err(format!("unknown operator: {} {} {}", left, x, right)),
             }
         }
+        (&Object::StringLiteral(ref l), &Object::StringLiteral(ref r)) => {
+            match op {
+                "++" => {
+                    let mut new = l.clone();
+                    new.push_str(r);
+                    Object::StringLiteral(new.to_string())
+                },
+                x => return Err(format!("unknown operator: {} {} {}", left, x, right)),
+            }
+        }
         (l, r) => return Err(format!("type mismatch: {} {} {}", l, op, r)),
     };
     Ok(result)
@@ -70,11 +80,15 @@ fn extend_function_env(
     let mut extended = Environment::extend(&env);
 
     if parameters.len() != args.len() {
-        return Err(format!("function expected {} arguments, got {}", parameters.len(), args.len()))
+        return Err(format!(
+            "function expected {} arguments, got {}",
+            parameters.len(),
+            args.len()
+        ));
     }
 
     for (i, param) in parameters.iter().enumerate() {
-       extended.set(param.value.clone(), args[i].clone())
+        extended.set(param.value.clone(), args[i].clone())
     }
 
     Ok(extended)
@@ -83,9 +97,11 @@ fn extend_function_env(
 impl Evaluator {
     fn visit_expr(&self, expr: &ast::Expression, env: &mut Environment) -> ObjectRcResult {
         use ast::Expression::*;
+        use ast::HasToken;
         match *expr {
             Integer(ref int) => Ok(Rc::new(Object::Integer(int.value))),
             Boolean(ref b) => Ok(Rc::new(Object::Boolean(b.value))),
+            String(ref s) => Ok(Rc::new(Object::StringLiteral(s.token_literal()))),
 
             Prefix(ref prefix) => {
                 let right = self.visit_expr(&*prefix.right, env)?;
@@ -118,8 +134,8 @@ impl Evaluator {
                 self.visit_statement(body, &mut env)
             }
             ref x => Err(format!("expected function object, got {}", x)),
+        }
     }
-}
     fn visit_expressions(
         &self,
         exprs: &Vec<Box<ast::Expression>>,
@@ -186,11 +202,7 @@ impl Evaluator {
         }
     }
 
-    fn visit_prefix_expression(
-        &self,
-        op: &str,
-        right: &Object,
-    ) -> ObjectRcResult {
+    fn visit_prefix_expression(&self, op: &str, right: &Object) -> ObjectRcResult {
         let result = match op {
             "!" => eval_bang_prefix_op_exp(right),
             "-" => eval_minus_prefix_op_exp(right),
@@ -208,11 +220,7 @@ impl Evaluator {
         }
     }
 
-    fn visit_statements(
-        &self,
-        stmts: &Vec<ast::Node>,
-        env: &mut Environment,
-    ) -> ObjectRcResult {
+    fn visit_statements(&self, stmts: &Vec<ast::Node>, env: &mut Environment) -> ObjectRcResult {
         let mut result = Rc::new(Object::Null);
         for stmt in stmts.iter() {
             if let &ast::Node::Statement(ref s) = stmt {
@@ -245,11 +253,7 @@ impl Evaluator {
         self.visit_statements(&block.statements, env)
     }
 
-    fn visit_statement(
-        &self,
-        stmt: &ast::Statement,
-        env: &mut Environment,
-    ) -> ObjectRcResult {
+    fn visit_statement(&self, stmt: &ast::Statement, env: &mut Environment) -> ObjectRcResult {
         use ast::Statement::*;
         match *stmt {
 
@@ -342,6 +346,7 @@ addTwo(2);";
             ("5 + true;", "type mismatch: 5 + true"),
             ("5 + true; 5", "type mismatch: 5 + true"),
             ("-true", "unknown operator: -true"),
+            ("let s = \"foo\"; -s", "unknown operator: -foo"),
             ("true + false;", "unknown operator: true + false"),
             ("5; true + false; 5", "unknown operator: true + false"),
             (
@@ -356,7 +361,7 @@ addTwo(2);";
 
         for t in tests {
             let mut env = Environment::new();
-            let node = parser::parse(t.0);
+            let node = parser::parse(t.0).unwrap();
             let evaluated = eval(&node, &mut env);
             assert_error(evaluated, t.1);
         }
@@ -389,6 +394,10 @@ addTwo(2);";
             ("if (1 > 2) { 10 }", Object::Null),
             ("if (1 > 2) { 10 } else { 20 }", Object::Integer(20)),
             ("if (1 < 2) { 10 } else { 20 }", Object::Integer(10)),
+            (
+                "if (1 < 2) { \"foobar\" } else { 20 }",
+                Object::StringLiteral("foobar".to_string())
+            ),
         ];
 
         for t in tests {
@@ -420,6 +429,16 @@ addTwo(2);";
             let mut env = Environment::new();
             let evaluated = assert_eval(test.0, &mut env);
             assert_integer_obj(evaluated.as_ref(), test.1);
+        }
+    }
+
+    #[test]
+    fn test_eval_string() {
+        let tests = vec![("\"foobar\"", "foobar"), ("\"foo\" ++ \"bar\"", "foobar")];
+        for t in tests {
+            let mut env = Environment::new();
+            let evaluated = assert_eval(t.0, &mut env);
+            assert_string(evaluated.as_ref(), t.1);
         }
     }
 
@@ -472,6 +491,14 @@ addTwo(2);";
         }
     }
 
+    fn assert_string(obj: &Object, expect: &str) {
+        match obj {
+            &Object::StringLiteral(ref s) => {
+               assert_eq!(s, expect);
+            }
+            x => assert!(false, "Expected string object, got {:?}", x)
+        }
+    }
     fn assert_function_obj(obj: &Object, expect_params: Vec<&str>, expect_body: &str) {
         match obj {
             &Object::Function(ref params, ref body, _) => {
@@ -488,6 +515,7 @@ addTwo(2);";
         match (obj, expect) {
             (&Object::Boolean(l), &Object::Boolean(r)) => assert_eq!(l, r),
             (&Object::Integer(l), &Object::Integer(r)) => assert_eq!(l, r),
+            (&Object::StringLiteral(ref l), &Object::StringLiteral(ref r)) => assert_eq!(l, r),
             (&Object::Null, &Object::Null) => assert!(true),
             _ => assert!(false),
         }
@@ -508,7 +536,7 @@ addTwo(2);";
     }
 
     fn assert_eval(s: &str, env: &mut Environment) -> Rc<object::Object> {
-        let node = parser::parse(s);
+        let node = parser::parse(s).unwrap();
         match eval(&node, env) {
             Ok(e) => e.clone(),
             Err(e) => {

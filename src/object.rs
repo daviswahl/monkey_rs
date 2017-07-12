@@ -7,6 +7,7 @@ use ast;
 pub enum Object {
     Integer(i64),
     Boolean(bool),
+    StringLiteral(String),
     Return(Rc<Object>),
     Function(Vec<ast::IdentifierExpression>, Box<ast::Statement>, Rc<Environment>),
     Null
@@ -23,6 +24,7 @@ impl fmt::Display for Object {
                 let params = params.iter().map(|p| format!("{}", p)).collect::<Vec<String>>().join(",");
                 format!("fn ({}) {{ {} }}", params, body)
             },
+            StringLiteral(ref s) => s.to_string(),
             Null => String::from("NULL")
         };
         write!(f, "{}", t)

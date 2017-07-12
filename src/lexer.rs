@@ -117,7 +117,12 @@ impl <'a>Lexer<'a> {
 
             b'=' => ASSIGN,
 
+            b'+' if self.next_eq(b'+') => {
+                self.read_char();
+                CONCAT
+            },
             b'+' => PLUS,
+
             b'-' => MINUS,
             b'/' => SLASH,
             b'*' => ASTERISK,
@@ -161,7 +166,7 @@ mod tests {
 
     #[test]
     fn lexing_1() {
-        let input = "=+(){},;";
+        let input = "=+(){},++;";
 
         let mut l = Lexer::new(input);
 
@@ -173,6 +178,7 @@ mod tests {
             tok(::token::Token::LBRACE, "{"),
             tok(::token::Token::RBRACE, "}"),
             tok(::token::Token::COMMA, ","),
+            tok(::token::Token::CONCAT, "++"),
             tok(::token::Token::SEMICOLON, ";"),
             tok(::token::Token::EOF, "EOF"),
         ];
@@ -208,6 +214,7 @@ if (5 < 10) {
 10 != 9;
 
 \"foo\";
+\"foo\" ++ \"bar\";
 \"foo-bar\";";
         let mut l = Lexer::new(input);
 
@@ -293,6 +300,12 @@ if (5 < 10) {
 
             tok(token::Token::STRING("foo".to_string()), "foo"),
             tok(token::Token::SEMICOLON, ";"),
+
+            tok(token::Token::STRING("foo".to_string()), "foo"),
+            tok(token::Token::CONCAT, "++"),
+            tok(token::Token::STRING("bar".to_string()), "bar"),
+            tok(token::Token::SEMICOLON, ";"),
+
             tok(token::Token::STRING("foo-bar".to_string()), "foo-bar"),
             tok(token::Token::SEMICOLON, ";"),
             tok(token::Token::EOF, "EOF"),
