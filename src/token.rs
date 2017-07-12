@@ -1,11 +1,9 @@
-pub type TokenType = &'static str;
-
 #[derive(Debug, PartialEq, Clone)]
 pub enum Token {
     ILLEGAL,
     EOF,
     IDENT(String),
-
+    STRING(String),
     INT(String),
 
     ASSIGN,
@@ -20,6 +18,7 @@ pub enum Token {
 
     COMMA,
     SEMICOLON,
+    QUOTE,
 
     LPAREN,
     RPAREN,
@@ -46,6 +45,7 @@ impl Token {
             &Token::IDENT(ref i) => return i.clone(),
 
             &Token::INT(ref i) => return i.clone(),
+            &Token::STRING(ref i) => return i.clone(),
 
             &Token::ASSIGN => "=",
             &Token::PLUS => "+",
@@ -59,6 +59,7 @@ impl Token {
 
             &Token::COMMA => ",",
             &Token::SEMICOLON => ";",
+            &Token::QUOTE => "\"",
 
             &Token::LPAREN => "(",
             &Token::RPAREN => ")",
@@ -96,11 +97,12 @@ pub fn assign_ident(s: String) -> Token {
         None => Token::IDENT(s),
     }
 }
-pub fn compare_tokens(l: &Token, r: &Token) -> bool {
+pub fn cmp(l: &Token, r: &Token) -> bool {
     use self::Token::*;
     match (l, r) {
         (&IDENT(_), &IDENT(_)) => true,
         (&INT(_), &INT(_)) => true,
+        (&STRING(_), &STRING(_)) => true,
         _ => l == r,
     }
 }

@@ -69,6 +69,18 @@ impl <'a>Lexer<'a> {
         self.read_pos += 1;
     }
 
+    fn read_string(&mut self) -> String {
+        self.read_char();
+        let pos = self.pos;
+        while self.ch != b'"' {
+            self.read_char();
+        }
+        let s = self.input[pos..self.pos].to_string();
+        self.read_char();
+        s
+
+    }
+
     fn read_identifier(&mut self) -> String {
         let pos = self.pos;
 
@@ -126,6 +138,7 @@ impl <'a>Lexer<'a> {
             b';' => SEMICOLON,
             b'\0' => EOF,
 
+            b'"' => return STRING(self.read_string()),
             x if is_letter(x) => return token::assign_ident(self.read_identifier()),
 
             x if is_digit(x) => {
@@ -166,7 +179,7 @@ mod tests {
 
         for t in tests {
             let tok = l.next_token();
-            assert!(token::compare_tokens(&tok, &t.0));
+            assert!(token::cmp(&tok, &t.0));
             assert_eq!(tok.literal(), t.1);
         }
     }
@@ -193,7 +206,9 @@ if (5 < 10) {
 
 10 == 10;
 10 != 9;
-";
+
+\"foo\";
+\"foo-bar\";";
 
 
 
@@ -278,12 +293,18 @@ if (5 < 10) {
             tok(token::Token::NOT_EQ, "!="),
             tok(token::Token::INT("9".to_string()), "9"),
             tok(token::Token::SEMICOLON, ";"),
+
+            tok(token::Token::STRING("foo".to_string()), "foo"),
+            tok(token::Token::SEMICOLON, ";"),
+            tok(token::Token::STRING("foo-bar".to_string()), "foo-bar"),
+            tok(token::Token::SEMICOLON, ";"),
             tok(token::Token::EOF, "EOF"),
         ];
 
         for t in tests {
             let tok = l.next_token();
-            assert!(token::compare_tokens(&tok, &t.0));
+            println!("compare: {:?} : {:?}", &tok, &t.0);
+            assert!(token::cmp(&tok, &t.0));
             assert_eq!(tok.literal(), t.1);
         }
     }

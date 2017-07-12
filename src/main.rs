@@ -1,6 +1,5 @@
 extern crate monkey_parser;
 
-use std::error::Error;
 use monkey_parser::environment::Environment;
 
 fn main() {

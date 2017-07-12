@@ -69,11 +69,11 @@ impl<'a> Parser<'a> {
     }
 
     fn cur_token_is(&self, t: &token::Token) -> bool {
-        token::compare_tokens(&self.cur_token, t)
+        token::cmp(&self.cur_token, t)
     }
 
     fn peek_token_is(&self, t: &token::Token) -> bool {
-        token::compare_tokens(&self.peek_token, t)
+        token::cmp(&self.peek_token, t)
     }
 
     fn expect_peek(&mut self, t: &token::Token) -> bool {
