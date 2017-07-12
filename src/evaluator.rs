@@ -48,7 +48,7 @@ fn eval_infix_expression(op: &str, left: &Object, right: &Object) -> ObjectResul
                     let mut new = l.clone();
                     new.push_str(r);
                     Object::StringLiteral(new.to_string())
-                },
+                }
                 x => return Err(format!("unknown operator: {} {} {}", left, x, right)),
             }
         }
@@ -104,15 +104,18 @@ impl Evaluator {
             String(ref s) => Ok(Rc::new(Object::StringLiteral(s.token_literal()))),
 
             Prefix(ref prefix) => {
-                let right = self.visit_expr(&*prefix.right, env)?;
-                self.visit_prefix_expression(prefix.operator.as_str(), &*right)
+                self.visit_expr(&*prefix.right, env).and_then(|right| {
+                    self.visit_prefix_expression(prefix.operator.as_str(), &*right)
+                })
             }
 
             Infix(ref infix) => {
-                let left = self.visit_expr(&*infix.left, env)?;
-                let right = self.visit_expr(&*infix.right, env)?;
-                let result = eval_infix_expression(infix.operator.as_str(), &left, &right)?;
-                Ok(Rc::new(result))
+                self.visit_expr(&*infix.left, env).and_then(|left| {
+                    self.visit_expr(&*infix.right, env).and_then(|right| {
+                        eval_infix_expression(infix.operator.as_str(), &left, &right)
+                            .map(|result| Rc::new(result))
+                    })
+                })
             }
 
             If(ref ifexp) => self.visit_cond_expression(ifexp, env),
@@ -143,8 +146,7 @@ impl Evaluator {
     ) -> ObjectsResult {
         let mut results: Vec<Rc<Object>> = vec![];
         for expr in exprs.iter() {
-            let r = self.visit_expr(expr.as_ref(), env)?;
-            results.push(r);
+            results.push(self.visit_expr(expr.as_ref(), env)?);
         }
         Ok(results)
     }
@@ -344,6 +346,7 @@ addTwo(2);";
     fn test_errors() {
         let tests = vec![
             ("5 + true;", "type mismatch: 5 + true"),
+            ("5 ++ true;", "type mismatch: 5 ++ true"),
             ("5 + true; 5", "type mismatch: 5 + true"),
             ("-true", "unknown operator: -true"),
             ("let s = \"foo\"; -s", "unknown operator: -foo"),
@@ -494,9 +497,9 @@ addTwo(2);";
     fn assert_string(obj: &Object, expect: &str) {
         match obj {
             &Object::StringLiteral(ref s) => {
-               assert_eq!(s, expect);
+                assert_eq!(s, expect);
             }
-            x => assert!(false, "Expected string object, got {:?}", x)
+            x => assert!(false, "Expected string object, got {:?}", x),
         }
     }
     fn assert_function_obj(obj: &Object, expect_params: Vec<&str>, expect_body: &str) {
