@@ -4,6 +4,7 @@ use token;
 use environment;
 use std::fmt;
 use std::rc::Rc;
+use std::cell::RefCell;
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Builtin {
@@ -13,6 +14,7 @@ pub enum Builtin {
     Last,
     Rest,
     Push,
+    Eval,
 }
 
 fn check_arity_0(args: Vec<Rc<object::Object>>) -> Result<(), String> {
@@ -37,25 +39,27 @@ fn check_arity_2(args: Vec<Rc<object::Object>>) -> Result<(Rc<Object>, Rc<Object
 }
 
 impl Builtin {
-    fn call(&self, args: Vec<Rc<Object>>, env: &environment::Environment) -> ObjectRcResult {
+    fn call(&self, args: Vec<Rc<Object>>, env: Rc<RefCell<environment::Environment>>) -> ObjectRcResult {
         match self {
             &Builtin::Len => check_arity_1(args).and_then(|arg1| len(arg1)),
             &Builtin::Print => check_arity_1(args).and_then(|arg1| print(arg1)),
             &Builtin::First => check_arity_1(args).and_then(|arg1| first(arg1)),
             &Builtin::Last => check_arity_1(args).and_then(|arg1| last(arg1)),
             &Builtin::Rest => check_arity_1(args).and_then(|arg1| rest(arg1)),
+            &Builtin::Eval => check_arity_1(args).and_then(|arg1| eval(arg1, env)),
             &Builtin::Push => check_arity_2(args).and_then(|(arg1, arg2)| push(arg1, arg2)),
         }
     }
 }
 
-pub static BUILTINS: [(&'static str, Builtin); 6] = [
+pub static BUILTINS: [(&'static str, Builtin); 7] = [
     ("len", Builtin::Len),
     ("print", Builtin::Print),
     ("first", Builtin::First),
     ("last", Builtin::Last),
     ("rest", Builtin::Rest),
-    ("push", Builtin::Push)
+    ("push", Builtin::Push),
+    ("eval", Builtin::Eval)
 ];
 
 
@@ -80,7 +84,7 @@ pub fn is_builtin(s: &str) -> bool {
 
 pub fn call(
     tok: &token::Token,
-    env: &environment::Environment,
+    env: Rc<RefCell<environment::Environment>>,
     args: Vec<Rc<object::Object>>,
 ) -> ObjectRcResult {
     from_token(tok).and_then(|builtin| builtin.call(args, env))
@@ -127,6 +131,19 @@ fn push(array: Rc<Object>, value: Rc<Object>) -> ObjectRcResult {
             Ok(Rc::new(Object::ArrayLiteral(new)))
         }
         ref x => Err(format!("first: unsupported type {}", x)),
+    }
+}
+
+fn eval(arg: Rc<Object>, env: Rc<RefCell<environment::Environment>>) -> ObjectRcResult {
+
+    use parser;
+    use evaluator;
+    match *arg {
+        Object::StringLiteral(ref string) => {
+            let program = parser::parse(string).expect("could not parse");
+            evaluator::eval(&program, env)
+        }
+        ref x => Err(format!("first: unsupported tpye {}", x)),
     }
 }
 

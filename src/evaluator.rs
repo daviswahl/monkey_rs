@@ -184,7 +184,7 @@ impl Evaluator {
                 let env = extend_function_env(parameters, func_env.clone(), args)?;
                 self.visit_statement(body, Rc::new(RefCell::new(env)))
             }
-            Object::BuiltinFunction(ref tok) => builtin::call(tok, &env.as_ref().borrow(), args),
+            Object::BuiltinFunction(ref tok) => builtin::call(tok, env, args),
             ref x => Err(format!("expected function object, got {}", x)),
         }
     }
@@ -348,6 +348,31 @@ mod tests {
     use super::*;
 
     #[test]
+    fn big_test() {
+        let input = "
+let reduce = fn(arr, initial, f) {
+  let iter = fn(arr, result) {
+    if (len(arr) == 0) {
+      result
+    } else {
+      iter(rest(arr), f(result, first(arr)));
+    }
+  };
+
+  iter(arr, initial);
+};
+
+let sum = fn(arr) {
+  reduce(arr, 0, fn(initial, el) { initial + el });
+};
+
+sum([1,2,3,4,5]);
+";
+        let env = Environment::new();
+        assert_integer(assert_eval(input, env).as_ref(), 15);
+
+    }
+    #[test]
     fn test_array_indexing() {
         let tests = vec![
             ("[1,2,3][0]", 1),
@@ -404,6 +429,12 @@ mod tests {
             let env = Environment::new();
             assert_error(eval(&parser::parse(t.0).unwrap(), env), t.1)
         }
+    }
+    #[test]
+    fn test_builtin_eval() {
+        let env = Environment::new();
+        let input = "eval(\"let add = fn(a,b) { a + b; };\"); add(2,3);";
+        assert_integer(assert_eval(input, env).as_ref(), 5);
     }
 
     #[test]

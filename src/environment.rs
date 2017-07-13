@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use object::Object;
-use std::cell::{RefCell};
+use std::cell::RefCell;
 use std::rc::Rc;
 
 #[derive(Debug, PartialEq, Clone)]
@@ -18,16 +18,15 @@ impl Environment {
     }
 
     pub fn get(&self, ident: String) -> Option<Rc<Object>> {
-        let outer = self.outer.clone();
         self.env.get(&ident).map(|e| e.clone()).or(
-            outer.and_then(|e| {
+            self.outer.as_ref().and_then(|e| {
                 e.borrow().get(ident)
             }),
         )
     }
 
     pub fn set(&mut self, ident: String, obj: Rc<Object>) {
-        self.env.insert(ident, obj.clone());
+        self.env.insert(ident, obj);
     }
 
     pub fn extend(env: Rc<RefCell<Environment>>) -> Environment {
@@ -46,7 +45,7 @@ mod tests {
     #[test]
     fn test_extend() {
         use std::borrow::Borrow;
-        let mut env = Environment::new();
+        let env = Environment::new();
 
         env.borrow_mut().set(
             String::from("foo"),
