@@ -1,5 +1,5 @@
 use object;
-use object::{ObjectsResult, ObjectResult, ObjectRcResult, Object};
+use object::{ObjectRcResult, Object};
 use token;
 use environment;
 use std::fmt;

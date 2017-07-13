@@ -1,5 +1,4 @@
 use std::fmt;
-use builtin;
 use std::rc::Rc;
 use std::cell::RefCell;
 use environment::Environment;

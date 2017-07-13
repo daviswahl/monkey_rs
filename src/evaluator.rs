@@ -3,8 +3,6 @@ use object::{Object, ObjectRcResult, ObjectResult, ObjectsResult};
 use environment::Environment;
 use std::rc::Rc;
 use std::cell::RefCell;
-use std::borrow::Borrow;
-use std::io::Stderr;
 
 use builtin;
 
@@ -136,42 +134,57 @@ impl Evaluator {
         }
     }
 
-    fn visit_index_expression(&self, exp: &ast::IndexExpression, env: Rc<RefCell<Environment>>) -> ObjectRcResult {
+    fn visit_index_expression(
+        &self,
+        exp: &ast::IndexExpression,
+        env: Rc<RefCell<Environment>>,
+    ) -> ObjectRcResult {
         self.visit_expr(&*exp.left, env.clone()).and_then(|left| {
             if let Object::ArrayLiteral(ref array) = *left {
-               self.visit_expr(&*exp.index, env).and_then(|index| {
+                self.visit_expr(&*exp.index, env).and_then(|index| {
                     if let Object::Integer(i) = *index {
                         if i <= array.len() as i64 {
                             Ok(array[i as usize].clone())
                         } else {
-                            Err(format!("error, indexed out of range: {}, length: {}", i, array.len()))
+                            Err(format!(
+                                "error, indexed out of range: {}, length: {}",
+                                i,
+                                array.len()
+                            ))
                         }
                     } else {
                         Err(format!("cannot index out of array with type: {}", index))
                     }
-               })
+                })
             } else {
-                return Err(format!("Expected array literal, got: {}", left))
+                return Err(format!("Expected array literal, got: {}", left));
             }
         })
     }
 
-    fn visit_array_expression(&self, exp: &ast::ArrayLiteral, env: Rc<RefCell<Environment>>) -> ObjectRcResult {
+    fn visit_array_expression(
+        &self,
+        exp: &ast::ArrayLiteral,
+        env: Rc<RefCell<Environment>>,
+    ) -> ObjectRcResult {
 
         self.visit_expressions(&exp.elements, env).map(|elements| {
             Rc::new(Object::ArrayLiteral(elements))
         })
     }
 
-    fn apply_function(&self, func: Rc<Object>, env: Rc<RefCell<Environment>>, args: Vec<Rc<Object>>) -> ObjectRcResult {
+    fn apply_function(
+        &self,
+        func: Rc<Object>,
+        env: Rc<RefCell<Environment>>,
+        args: Vec<Rc<Object>>,
+    ) -> ObjectRcResult {
         match *func {
             Object::Function(ref parameters, ref body, ref func_env) => {
-                let mut env = extend_function_env(parameters, func_env.clone(), args)?;
+                let env = extend_function_env(parameters, func_env.clone(), args)?;
                 self.visit_statement(body, Rc::new(RefCell::new(env)))
-            },
-            Object::BuiltinFunction(ref tok) => {
-                builtin::call(tok, &env.as_ref().borrow(), args)
-            },
+            }
+            Object::BuiltinFunction(ref tok) => builtin::call(tok, &env.as_ref().borrow(), args),
             ref x => Err(format!("expected function object, got {}", x)),
         }
     }
@@ -219,10 +232,13 @@ impl Evaluator {
         expr: &ast::IdentifierExpression,
         env: Rc<RefCell<Environment>>,
     ) -> ObjectRcResult {
-        env.as_ref().borrow().get(expr.value.clone()).ok_or(format!(
-            "unknown identifier: {}",
-            expr.value.clone()
-        ))
+        env.as_ref().borrow().get(expr.value.clone()).ok_or(
+            format!(
+                "unknown identifier: {}",
+                expr.value
+                    .clone()
+            ),
+        )
     }
 
     fn visit_cond_expression(
@@ -258,7 +274,11 @@ impl Evaluator {
         }
     }
 
-    fn visit_statements(&self, stmts: &Vec<ast::Node>, env: Rc<RefCell<Environment>>) -> ObjectRcResult {
+    fn visit_statements(
+        &self,
+        stmts: &Vec<ast::Node>,
+        env: Rc<RefCell<Environment>>,
+    ) -> ObjectRcResult {
         let mut result = Rc::new(Object::Null);
         for stmt in stmts.iter() {
             if let &ast::Node::Statement(ref s) = stmt {
@@ -291,7 +311,11 @@ impl Evaluator {
         self.visit_statements(&block.statements, env)
     }
 
-    fn visit_statement(&self, stmt: &ast::Statement, env: Rc<RefCell<Environment>>) -> ObjectRcResult {
+    fn visit_statement(
+        &self,
+        stmt: &ast::Statement,
+        env: Rc<RefCell<Environment>>,
+    ) -> ObjectRcResult {
         use ast::Statement::*;
         match *stmt {
 
@@ -325,29 +349,39 @@ mod tests {
 
     #[test]
     fn test_array_indexing() {
-       let tests = vec![
-           ("[1,2,3][0]", 1),
-           ("let arr = [1,2,3]; arr[0]", 1),
-           ("let arr = [1,2,3]; arr[2]", 3),
-           ("let arr = [1,2,3]; let i = 0; arr[i];", 1),
-       ] ;
+        let tests = vec![
+            ("[1,2,3][0]", 1),
+            ("let arr = [1,2,3]; arr[0]", 1),
+            ("let arr = [1,2,3]; arr[2]", 3),
+            ("let arr = [1,2,3]; let i = 0; arr[i];", 1),
+        ];
 
         for t in tests {
-            let mut env = Environment::new();
+            let env = Environment::new();
             assert_integer(assert_eval(t.0, env).as_ref(), t.1)
         }
     }
     #[test]
     fn test_array_literals() {
-        let tests =   vec![
-            ("[1,2,3]", vec![Object::Integer(1), Object::Integer(2), Object::Integer(3)]),
-            ("[true,false,true]", vec![Object::Boolean(true), Object::Boolean(false), Object::Boolean(true)]),
+        let tests = vec![
+            (
+                "[1,2,3]",
+                vec![Object::Integer(1), Object::Integer(2), Object::Integer(3)]
+            ),
+            (
+                "[true,false,true]",
+                vec![
+                    Object::Boolean(true),
+                    Object::Boolean(false),
+                    Object::Boolean(true),
+                ]
+            ),
             ("[\"foo\"]", vec![Object::StringLiteral("foo".to_string())]),
             ("[]", vec![]),
         ];
 
         for t in tests {
-            let mut env = Environment::new();
+            let env = Environment::new();
             assert_array(assert_eval(t.0, env).as_ref(), t.1)
         }
     }
@@ -355,17 +389,19 @@ mod tests {
     #[test]
     fn test_builtins() {
         let input = "len(\"foobar\");";
-        let mut env = Environment::new();
+        let env = Environment::new();
         assert_integer(assert_eval(input, env).as_ref(), 6);
     }
 
     #[test]
-    fn test_builtins_2(){
-       let tests = vec![("len(1);","len: unsupported type 1")];
-        let tests = vec![("len(1,2);","expected 1 argument, got 2")];
+    fn test_builtins_2() {
+        let tests = vec![
+            ("len(1);", "len: unsupported type 1"),
+            ("len(1,2);", "expected 1 argument, got 2"),
+        ];
 
         for t in tests {
-            let mut env = Environment::new();
+            let env = Environment::new();
             assert_error(eval(&parser::parse(t.0).unwrap(), env), t.1)
         }
     }
@@ -379,7 +415,7 @@ let newAdder = fn(x) {
 let addTwo = newAdder(2);
 addTwo(2);";
 
-        let mut env = Environment::new();
+        let env = Environment::new();
         assert_integer(assert_eval(input, env).as_ref(), 4)
     }
 
@@ -395,7 +431,7 @@ addTwo(2);";
         ];
 
         for t in tests {
-            let mut env = Environment::new();
+            let env = Environment::new();
             let evaluated = assert_eval(t.0, env);
             assert_integer(evaluated.as_ref(), t.1)
         }
@@ -404,7 +440,7 @@ addTwo(2);";
     #[test]
     fn test_function_object() {
         let input = "fn(x) { x + 2; };";
-        let mut env = Environment::new();
+        let env = Environment::new();
         let evaluated = assert_eval(input, env);
         assert_function_obj(evaluated.as_ref(), vec!["x"], "(x + 2)");
     }
@@ -419,7 +455,7 @@ addTwo(2);";
         ];
 
         for t in tests {
-            let mut env = Environment::new();
+            let env = Environment::new();
             let evaluated = assert_eval(t.0, env);
             assert_integer(evaluated.as_ref(), t.1);
         }
@@ -446,7 +482,7 @@ addTwo(2);";
         ];
 
         for t in tests {
-            let mut env = Environment::new();
+            let env = Environment::new();
             let node = parser::parse(t.0).unwrap();
             let evaluated = eval(&node, env);
             assert_error(evaluated, t.1);
@@ -464,7 +500,7 @@ addTwo(2);";
         ];
 
         for t in tests {
-            let mut env = Environment::new();
+            let env = Environment::new();
             let evaluated = assert_eval(t.0, env);
             assert_integer(evaluated.as_ref(), t.1);
         }
@@ -487,7 +523,7 @@ addTwo(2);";
         ];
 
         for t in tests {
-            let mut env = Environment::new();
+            let env = Environment::new();
             let evaluated = assert_eval(t.0, env);
             assert_object(evaluated.as_ref(), &t.1);
         }
@@ -512,7 +548,7 @@ addTwo(2);";
         ];
 
         for test in tests {
-            let mut env = Environment::new();
+            let env = Environment::new();
             let evaluated = assert_eval(test.0, env);
             assert_integer(evaluated.as_ref(), test.1);
         }
@@ -522,7 +558,7 @@ addTwo(2);";
     fn test_eval_string() {
         let tests = vec![("\"foobar\"", "foobar"), ("\"foo\" ++ \"bar\"", "foobar")];
         for t in tests {
-            let mut env = Environment::new();
+            let env = Environment::new();
             let evaluated = assert_eval(t.0, env);
             assert_string(evaluated.as_ref(), t.1);
         }
@@ -554,7 +590,7 @@ addTwo(2);";
         ];
 
         for t in tests {
-            let mut env = Environment::new();
+            let env = Environment::new();
             let evaluated = assert_eval(t.0, env);
             assert_bool(evaluated.as_ref(), t.1);
         }
@@ -571,7 +607,7 @@ addTwo(2);";
             ("!!5", true),
         ];
         for t in tests {
-            let mut env = Environment::new();
+            let env = Environment::new();
             let evaluated = assert_eval(t.0, env);
             assert_bool(evaluated.as_ref(), t.1)
         }
@@ -584,7 +620,7 @@ addTwo(2);";
                     assert_eq!(**elem, expect[i])
                 }
             }
-            x => assert!(false, "Expected string object, got {}", x)
+            x => assert!(false, "Expected string object, got {}", x),
         }
     }
     fn assert_string(obj: &Object, expect: &str) {
