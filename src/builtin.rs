@@ -17,27 +17,6 @@ pub enum Builtin {
     Eval,
 }
 
-fn check_arity_0(args: Vec<Rc<object::Object>>) -> Result<(), String> {
-    if args.len() == 0 {
-        return Ok(());
-    }
-    Err(format!("expected 0 arguments, got {}", args.len()))
-}
-
-fn check_arity_1(args: Vec<Rc<object::Object>>) -> Result<(Rc<Object>), String> {
-    if args.len() == 1 {
-        return Ok((args[0].clone()));
-    }
-    Err(format!("expected 1 argument, got {}", args.len()))
-}
-
-fn check_arity_2(args: Vec<Rc<object::Object>>) -> Result<(Rc<Object>, Rc<Object>), String> {
-    if args.len() == 2 {
-        return Ok((args[0].clone(), args[1].clone()));
-    }
-    Err(format!("expected 2 arguments, got {}", args.len()))
-}
-
 impl Builtin {
     fn call(&self, args: Vec<Rc<Object>>, env: Rc<RefCell<environment::Environment>>) -> ObjectRcResult {
         match self {
@@ -61,6 +40,27 @@ pub static BUILTINS: [(&'static str, Builtin); 7] = [
     ("push", Builtin::Push),
     ("eval", Builtin::Eval)
 ];
+
+fn check_arity_0(args: Vec<Rc<object::Object>>) -> Result<(), String> {
+    if args.len() == 0 {
+        return Ok(());
+    }
+    Err(format!("expected 0 arguments, got {}", args.len()))
+}
+
+fn check_arity_1(args: Vec<Rc<object::Object>>) -> Result<(Rc<Object>), String> {
+    if args.len() == 1 {
+        return Ok((args[0].clone()));
+    }
+    Err(format!("expected 1 argument, got {}", args.len()))
+}
+
+fn check_arity_2(args: Vec<Rc<object::Object>>) -> Result<(Rc<Object>, Rc<Object>), String> {
+    if args.len() == 2 {
+        return Ok((args[0].clone(), args[1].clone()));
+    }
+    Err(format!("expected 2 arguments, got {}", args.len()))
+}
 
 
 fn to_str(b: &Builtin) -> &'static str {

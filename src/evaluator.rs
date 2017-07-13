@@ -160,6 +160,8 @@ impl Evaluator {
                 return Err(format!("Expected array literal, got: {}", left));
             }
         })
+
+        Rc::
     }
 
     fn visit_array_expression(

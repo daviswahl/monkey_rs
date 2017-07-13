@@ -17,6 +17,7 @@ pub enum Object {
     Null
 }
 
+
 pub type ObjectRcResult = Result<Rc<Object>, String>;
 pub type ObjectsResult = Result<Vec<Rc<Object>>, String>;
 pub type ObjectResult = Result<Object, String>;
