@@ -2,14 +2,17 @@
 
 #![cfg_attr(feature="clippy", plugin(clippy))]
 
+pub mod environment;
+pub mod object;
+
 mod token;
 mod lexer;
 mod ast;
 mod parser;
-pub mod object;
 mod evaluator;
 mod builtin;
-pub mod environment;
+mod runtime;
+
 use object::Object;
 use std::rc::Rc;
 use std::cell::RefCell;

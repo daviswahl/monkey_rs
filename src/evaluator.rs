@@ -3,66 +3,15 @@ use object::{Object, ObjectRcResult, ObjectResult, ObjectsResult};
 use environment::Environment;
 use std::rc::Rc;
 use std::cell::RefCell;
+use runtime;
 
 use builtin;
 
-struct Evaluator {}
-
-fn eval_bang_prefix_op_exp(obj: &Object) -> ObjectResult {
-    let result = match *obj {
-        Object::Boolean(true) => Object::Boolean(false),
-        Object::Boolean(false) => Object::Boolean(true),
-        Object::Null => Object::Boolean(true),
-        _ => Object::Boolean(false),
-    };
-    Ok(result)
+struct Evaluator {
+    runtime: runtime::Runtime,
 }
 
-fn eval_infix_expression(op: &str, left: &Object, right: &Object) -> ObjectResult {
-    let result = match (left, right) {
-        (&Object::Integer(l), &Object::Integer(r)) => {
-            match op {
-                "/" => Object::Integer(l / r),
-                "*" => Object::Integer(l * r),
-                "-" => Object::Integer(l - r),
-                "+" => Object::Integer(l + r),
 
-                ">" => Object::Boolean(l > r),
-                "<" => Object::Boolean(l < r),
-                "==" => Object::Boolean(l == r),
-                "!=" => Object::Boolean(l != r),
-                x => return Err(format!("unknown operator: {} {} {}", left, x, right)),
-            }
-        }
-        (&Object::Boolean(l), &Object::Boolean(r)) => {
-            match op {
-                "==" => Object::Boolean(l == r),
-                "!=" => Object::Boolean(l != r),
-                x => return Err(format!("unknown operator: {} {} {}", left, x, right)),
-            }
-        }
-        (&Object::StringLiteral(ref l), &Object::StringLiteral(ref r)) => {
-            match op {
-                "++" => {
-                    let mut new = l.clone();
-                    new.push_str(r);
-                    Object::StringLiteral(new.to_string())
-                }
-                x => return Err(format!("unknown operator: {} {} {}", left, x, right)),
-            }
-        }
-        (l, r) => return Err(format!("type mismatch: {} {} {}", l, op, r)),
-    };
-    Ok(result)
-}
-
-fn eval_minus_prefix_op_exp(obj: &Object) -> ObjectResult {
-    let result = match *obj {
-        Object::Integer(int) => Object::Integer(-int),
-        ref t => return Err(format!("unknown operator: -{}", t)),
-    };
-    Ok(result)
-}
 
 fn is_truthy(obj: &Object) -> bool {
     match obj {
@@ -111,8 +60,7 @@ impl Evaluator {
             Infix(ref infix) => {
                 self.visit_expr(&*infix.left, env.clone()).and_then(|left| {
                     self.visit_expr(&*infix.right, env).and_then(|right| {
-                        eval_infix_expression(infix.operator.as_str(), &left, &right)
-                            .map(|result| Rc::new(result))
+                        self.eval_infix_expression(infix.operator.as_str(), &left, &right)
                     })
                 })
             }
@@ -134,6 +82,61 @@ impl Evaluator {
         }
     }
 
+    fn eval_bang_prefix_op_exp(&self, obj: &Object) -> ObjectRcResult {
+        let result = match *obj {
+            Object::Boolean(true) => self.runtime.bool(false),
+            Object::Boolean(false) => self.runtime.bool(true),
+            Object::Null => self.runtime.bool(true),
+            _ => self.runtime.bool(false)
+        };
+        Ok(result)
+    }
+
+    fn eval_infix_expression(&self, op: &str, left: &Object, right: &Object) -> ObjectRcResult {
+        let result = match (left, right) {
+            (&Object::Integer(l), &Object::Integer(r)) => {
+                match op {
+                    "/" => Rc::new(Object::Integer(l / r)),
+                    "*" => Rc::new(Object::Integer(l * r)),
+                    "-" => Rc::new(Object::Integer(l - r)),
+                    "+" => Rc::new(Object::Integer(l + r)),
+
+                    ">" => self.runtime.bool(l > r),
+                    "<" => self.runtime.bool(l < r),
+                    "==" => self.runtime.bool(l == r),
+                    "!=" => self.runtime.bool(l != r),
+                    x => return Err(format!("unknown operator: {} {} {}", left, x, right)),
+                }
+            }
+            (&Object::Boolean(l), &Object::Boolean(r)) => {
+                match op {
+                    "==" => self.runtime.bool(l == r),
+                    "!=" => self.runtime.bool(l != r),
+                    x => return Err(format!("unknown operator: {} {} {}", left, x, right)),
+                }
+            }
+            (&Object::StringLiteral(ref l), &Object::StringLiteral(ref r)) => {
+                match op {
+                    "++" => {
+                        let mut new = l.clone();
+                        new.push_str(r);
+                        Rc::new(Object::StringLiteral(new.to_string()))
+                    }
+                    x => return Err(format!("unknown operator: {} {} {}", left, x, right)),
+                }
+            }
+            (l, r) => return Err(format!("type mismatch: {} {} {}", l, op, r)),
+        };
+        Ok(result)
+    }
+
+    fn eval_minus_prefix_op_exp(&self, obj: &Object) -> ObjectRcResult {
+        let result = match *obj {
+            Object::Integer(int) => Object::Integer(-int),
+            ref t => return Err(format!("unknown operator: -{}", t)),
+        };
+        Ok(Rc::new(result))
+    }
     fn visit_index_expression(
         &self,
         exp: &ast::IndexExpression,
@@ -252,17 +255,16 @@ impl Evaluator {
         } else if let Some(ref alt) = ifexp.alternative {
             self.visit_statement(&**alt, env)
         } else {
-            Ok(Rc::new(Object::Null))
+            Ok(self.runtime.NULL())
         }
     }
 
     fn visit_prefix_expression(&self, op: &str, right: &Object) -> ObjectRcResult {
-        let result = match op {
-            "!" => eval_bang_prefix_op_exp(right),
-            "-" => eval_minus_prefix_op_exp(right),
+        match op {
+            "!" => self.eval_bang_prefix_op_exp(right),
+            "-" => self.eval_minus_prefix_op_exp(right),
             _ => return Err(format!("unknown operator: {}{}", op, right)),
-        }?;
-        Ok(Rc::new(result))
+        }
     }
 
     fn visit_program(&self, n: &ast::Program, env: Rc<RefCell<Environment>>) -> ObjectRcResult {
@@ -279,7 +281,7 @@ impl Evaluator {
         stmts: &Vec<ast::Node>,
         env: Rc<RefCell<Environment>>,
     ) -> ObjectRcResult {
-        let mut result = Rc::new(Object::Null);
+        let mut result = self.runtime.NULL();
         for stmt in stmts.iter() {
             if let &ast::Node::Statement(ref s) = stmt {
                 result = self.visit_statement(s, env.clone())?;
@@ -300,7 +302,7 @@ impl Evaluator {
         let ident = stmt.name.value.to_owned();
         let value = self.visit_expr(&*stmt.value, env.clone())?;
         env.as_ref().borrow_mut().set(ident, value);
-        Ok(Rc::new(Object::Null))
+        Ok(self.runtime.NULL())
     }
 
     fn visit_block_statement(
@@ -335,12 +337,13 @@ impl Evaluator {
 
 pub fn eval(node: &ast::Node, env: Rc<RefCell<Environment>>) -> ObjectRcResult {
     use ast::Node::*;
-    let visitor = Evaluator {};
+    let visitor = Evaluator { runtime: runtime::new() };
     match *node {
         Program(ref program) => visitor.visit_program(program, env),
         ref x => Err(format!("expected program, got {}", x)),
     }
 }
+
 #[cfg(test)]
 mod tests {
     use parser;
