@@ -141,7 +141,7 @@ fn eval(arg: Rc<Object>, env: Rc<RefCell<environment::Environment>>) -> ObjectRc
     match *arg {
         Object::StringLiteral(ref string) => {
             let program = parser::parse(string).expect("could not parse");
-            evaluator::eval(&program, env)
+            evaluator::eval(program, env)
         }
         ref x => Err(format!("first: unsupported tpye {}", x)),
     }

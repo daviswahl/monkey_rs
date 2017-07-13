@@ -19,7 +19,7 @@ use std::cell::RefCell;
 
 pub fn eval(s: &str, env: Rc<RefCell<environment::Environment>>) -> Result<Rc<Object>, String> {
     match parse(s) {
-        Ok(p) => evaluator::eval(&p, env.clone()),
+        Ok(p) => evaluator::eval(p, env.clone()),
         Err(errs) => Err(format!("{:?}", errs)),
     }
 }
