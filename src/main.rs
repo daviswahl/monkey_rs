@@ -1,35 +1,32 @@
 extern crate monkey_parser;
 
-use monkey_parser::environment::Environment;
-use monkey_parser::object;
+use std::env;
+use std::fs;
+use std::path;
+use std::io::Read;
 
 fn main() {
-    repl()
+    for arg in env::args().skip(1) {
+        match arg.as_str() {
+            "repl" => monkey_parser::repl::run(),
+            _ => eval_file(arg),
+        }
+    }
 }
 
-fn repl() {
-    use std::io;
+fn eval_file(s: String) {
+    println!("{}", s.as_str());
+    let p = path::PathBuf::from(s);
+    let f = fs::File::open(p);
+    let mut buf: String = String::new();
+    let environment = monkey_parser::environment::Environment::new();
 
-    use std::io::Write;
-    let mut input = String::new();
-    let env = Environment::new();
-
-    print!("> ");
-    io::stdout().flush();
-
-    while let Ok(_) = io::stdin().read_line(&mut input) {
-        match monkey_parser::eval(input.as_str(), env.clone()) {
-            Ok(result) => {
-                match *result {
-                    object::Object::Null => (),
-                    _ => println!("{}", result),
-                }
-            }
-            Err(e) => println!("Error: {}", e),
-        }
-        input.clear();
-
-        print!("> ");
-        io::stdout().flush();
-    }
+    match f {
+        Ok(mut file) => {
+            file.read_to_string(&mut buf).map(|_| {
+                monkey_parser::eval(buf.as_str(), environment)
+            });
+        },
+        Err(e) => println!("Error: {}", e)
+    };
 }
