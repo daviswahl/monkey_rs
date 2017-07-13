@@ -35,6 +35,21 @@ impl Environment {
             env: HashMap::new(),
         }
     }
+
+    pub fn stats(&self, indent: i32) {
+        let mut indentation: String = String::from("");
+        let mut i = 0;
+        while i < indent {
+           indentation.push(' ');
+            i += 1;
+        }
+
+        for (key, value) in self.env.iter() {
+            println!("{}{}: {}", indentation, key, Rc::strong_count(value))
+        }
+
+        self.outer.as_ref().map(|outer| outer.borrow().stats(indent + 2));
+    }
 }
 
 
@@ -72,4 +87,5 @@ mod tests {
             Rc::new(Object::Null)
         );
     }
+
 }

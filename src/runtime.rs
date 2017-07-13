@@ -31,4 +31,15 @@ impl Runtime {
     pub fn bool(&self, b: bool) -> Rc<Object> {
         if b { self.TRUE() } else { self.FALSE() }
     }
+
+    pub fn stats(&self) {
+        println!("Global stats");
+        for global in self.globals.iter()  {
+            match **global {
+                Object::Null => println!("null {}", Rc::strong_count(global)),
+                _ => println!("{} {}", global, Rc::strong_count(global)),
+            }
+        }
+        println!();
+    }
 }

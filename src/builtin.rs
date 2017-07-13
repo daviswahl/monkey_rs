@@ -2,6 +2,7 @@ use object;
 use object::{ObjectRcResult, Object};
 use token;
 use environment;
+use runtime;
 use std::fmt;
 use std::rc::Rc;
 use std::cell::RefCell;
@@ -15,30 +16,38 @@ pub enum Builtin {
     Rest,
     Push,
     Eval,
+    Stats,
 }
 
 impl Builtin {
-    fn call(&self, args: Vec<Rc<Object>>, env: Rc<RefCell<environment::Environment>>) -> ObjectRcResult {
+    fn call(
+        &self,
+        args: Vec<Rc<Object>>,
+        env: Rc<RefCell<environment::Environment>>,
+        runtime: &runtime::Runtime,
+    ) -> ObjectRcResult {
         match self {
             &Builtin::Len => check_arity_1(args).and_then(|arg1| len(arg1)),
-            &Builtin::Print => check_arity_1(args).and_then(|arg1| print(arg1)),
+            &Builtin::Print => check_arity_1(args).and_then(|arg1| print(arg1, runtime)),
             &Builtin::First => check_arity_1(args).and_then(|arg1| first(arg1)),
             &Builtin::Last => check_arity_1(args).and_then(|arg1| last(arg1)),
             &Builtin::Rest => check_arity_1(args).and_then(|arg1| rest(arg1)),
             &Builtin::Eval => check_arity_1(args).and_then(|arg1| eval(arg1, env)),
             &Builtin::Push => check_arity_2(args).and_then(|(arg1, arg2)| push(arg1, arg2)),
+            &Builtin::Stats => check_arity_0(args).and_then(|_| stats(env, runtime)),
         }
     }
 }
 
-pub static BUILTINS: [(&'static str, Builtin); 7] = [
+pub static BUILTINS: [(&'static str, Builtin); 8] = [
     ("len", Builtin::Len),
     ("print", Builtin::Print),
     ("first", Builtin::First),
     ("last", Builtin::Last),
     ("rest", Builtin::Rest),
     ("push", Builtin::Push),
-    ("eval", Builtin::Eval)
+    ("eval", Builtin::Eval),
+    ("stats", Builtin::Stats),
 ];
 
 fn check_arity_0(args: Vec<Rc<object::Object>>) -> Result<(), String> {
@@ -64,12 +73,17 @@ fn check_arity_2(args: Vec<Rc<object::Object>>) -> Result<(Rc<Object>, Rc<Object
 
 
 fn to_str(b: &Builtin) -> &'static str {
-   BUILTINS.iter().find(|&&(_,ref v)| v == b)
-    .map(|&(k,_)| k).unwrap()
+    BUILTINS
+        .iter()
+        .find(|&&(_, ref v)| v == b)
+        .map(|&(k, _)| k)
+        .unwrap()
 }
 
 fn lookup(s: &str) -> Result<Builtin, String> {
-    BUILTINS.iter().find(|&&(ref k,_)| k == &s)
+    BUILTINS
+        .iter()
+        .find(|&&(ref k, _)| k == &s)
         .map(|&(_, b)| b)
         .ok_or(format!("could not locate builtin: {}", s))
 }
@@ -85,9 +99,10 @@ pub fn is_builtin(s: &str) -> bool {
 pub fn call(
     tok: &token::Token,
     env: Rc<RefCell<environment::Environment>>,
+    runtime: &runtime::Runtime,
     args: Vec<Rc<object::Object>>,
 ) -> ObjectRcResult {
-    from_token(tok).and_then(|builtin| builtin.call(args, env))
+    from_token(tok).and_then(|builtin| builtin.call(args, env, runtime))
 }
 
 impl fmt::Display for Builtin {
@@ -104,9 +119,9 @@ fn len(arg: Rc<Object>) -> ObjectRcResult {
     }
 }
 
-fn print(arg: Rc<Object>) -> ObjectRcResult {
+fn print(arg: Rc<Object>, runtime: &runtime::Runtime) -> ObjectRcResult {
     println!("{}", arg);
-    Ok(Rc::new(Object::Null))
+    Ok(runtime.NULL())
 }
 
 fn last(arg: Rc<Object>) -> ObjectRcResult {
@@ -145,6 +160,12 @@ fn eval(arg: Rc<Object>, env: Rc<RefCell<environment::Environment>>) -> ObjectRc
         }
         ref x => Err(format!("first: unsupported tpye {}", x)),
     }
+}
+
+fn stats(env: Rc<RefCell<environment::Environment>>, runtime: &runtime::Runtime) -> ObjectRcResult {
+    runtime.stats();
+    env.borrow().stats(0);
+    Ok(runtime.NULL())
 }
 
 fn rest(arg: Rc<Object>) -> ObjectRcResult {

@@ -10,8 +10,12 @@ fn main() {
 fn repl() {
     use std::io;
 
+    use std::io::Write;
     let mut input = String::new();
     let env = Environment::new();
+
+    print!("> ");
+    io::stdout().flush();
 
     while let Ok(_) = io::stdin().read_line(&mut input) {
         match monkey_parser::eval(input.as_str(), env.clone()) {
@@ -24,5 +28,8 @@ fn repl() {
             Err(e) => println!("Error: {}", e),
         }
         input.clear();
+
+        print!("> ");
+        io::stdout().flush();
     }
 }

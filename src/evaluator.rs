@@ -192,7 +192,7 @@ impl Evaluator {
                 let env = extend_function_env(parameters, func_env.clone(), args)?;
                 self.visit_statement(*body.clone(), Rc::new(RefCell::new(env)))
             }
-            Object::BuiltinFunction(ref tok) => builtin::call(tok, env, args),
+            Object::BuiltinFunction(ref tok) => builtin::call(tok, env, &self.runtime, args),
             ref x => Err(format!("expected function object, got {}", x)),
         }
     }
