@@ -1,25 +1,27 @@
 use std::collections::HashMap;
 use object::Object;
+use std::cell::{RefCell, Ref};
 use std::rc::Rc;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Environment {
-    outer: Option<Rc<Environment>>,
+    outer: Option<Rc<RefCell<Environment>>>,
     env: HashMap<String, Rc<Object>>,
 }
 
 
 impl Environment {
-    pub fn new() -> Environment {
-        Environment {
+    pub fn new() -> Rc<RefCell<Environment>> {
+        Rc::new(RefCell::new(Environment {
             outer: None,
             env: HashMap::new(),
-        }
+        }))
     }
 
     pub fn get(&self, ident: String) -> Option<Rc<Object>> {
+        let outer = self.outer.clone();
         self.env.get(&ident).map(|e| e.clone()).or(
-            self.outer.clone().and_then(|e| e.get(ident)),
+            outer.and_then(|e| e.borrow().get(ident)),
         )
     }
 
@@ -27,9 +29,9 @@ impl Environment {
         self.env.insert(ident, obj.clone());
     }
 
-    pub fn extend(env: &Rc<Environment>) -> Environment {
+    pub fn extend(env: Rc<RefCell<Environment>>) -> Environment {
         Environment {
-            outer: Some(env.clone()),
+            outer: Some(env),
             env: HashMap::new(),
         }
     }
@@ -42,13 +44,13 @@ mod tests {
 
     #[test]
     fn test_extend() {
+        use std::borrow::Borrow;
         let mut env = Environment::new();
 
-        env.set(String::from("foo"), Rc::new(Object::Null));
+        env.borrow_mut().set(String::from("foo"), Rc::new(Object::Null));
 
-        let env = Rc::new(env);
         {
-            let mut env2 = Environment::extend(&env);
+            let mut env2 = Environment::extend(env.clone());
 
             env2.set(String::from("bar"), Rc::new(Object::Boolean(false)));
 
@@ -56,9 +58,9 @@ mod tests {
                 env2.get(String::from("bar")).unwrap(),
                 Rc::new(Object::Boolean(false))
             );
-            assert_eq!(env2.get(String::from("foo")).unwrap(), Rc::new(Object::Null));
+            assert_eq!(env2.borrow().get(String::from("foo")).unwrap(), Rc::new(Object::Null));
         }
 
-        assert_eq!(env.get(String::from("foo")).unwrap(), Rc::new(Object::Null));
+        assert_eq!(env.as_ref().borrow().get(String::from("foo")).unwrap(), Rc::new(Object::Null));
     }
 }

@@ -1,6 +1,7 @@
 use std::fmt;
 use builtin;
 use std::rc::Rc;
+use std::cell::RefCell;
 use environment::Environment;
 use token;
 use ast;
@@ -11,7 +12,7 @@ pub enum Object {
     Boolean(bool),
     StringLiteral(String),
     Return(Rc<Object>),
-    Function(Vec<ast::IdentifierExpression>, Box<ast::Statement>, Rc<Environment>),
+    Function(Vec<ast::IdentifierExpression>, Box<ast::Statement>, Rc<RefCell<Environment>>),
     BuiltinFunction(token::Token),
     ArrayLiteral(Vec<Rc<Object>>),
     Null

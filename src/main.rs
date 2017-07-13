@@ -1,5 +1,7 @@
 extern crate monkey_parser;
 
+use std::rc::Rc;
+use std::cell::RefCell;
 use monkey_parser::environment::Environment;
 use monkey_parser::object;
 
@@ -14,7 +16,7 @@ fn repl() {
     let mut env = Environment::new();
 
     while let Ok(_) = io::stdin().read_line(&mut input) {
-        match monkey_parser::eval(input.as_str(), &mut env) {
+        match monkey_parser::eval(input.as_str(), env.clone()) {
             Ok(result) => {
                 match *result {
                     object::Object::Null => (),

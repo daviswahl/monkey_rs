@@ -49,7 +49,6 @@ impl Builtin {
     }
 }
 
-
 pub static BUILTINS: [(&'static str, Builtin); 6] = [
     ("len", Builtin::Len),
     ("print", Builtin::Print),
