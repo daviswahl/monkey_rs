@@ -141,6 +141,7 @@ impl <'a>Lexer<'a> {
             b'}' => RBRACE,
             b'[' => LBRACKET,
             b']' => RBRACKET,
+            b'|' => BAR,
 
             b',' => COMMA,
             b';' => SEMICOLON,
@@ -223,6 +224,10 @@ if (5 < 10) {
 len(4,5);
 len(\"foobar\");
 [1, 2];
+
+while(i) {
+  i = i + 1;
+}
 ";
         let mut l = Lexer::new(input);
 
@@ -338,11 +343,25 @@ len(\"foobar\");
             tok(token::Token::RBRACKET, "]"),
             tok(token::Token::SEMICOLON, ";"),
 
+
+            tok(token::Token::BUILTIN("while".to_string()), "while"),
+            tok(token::Token::LPAREN, "("),
+            tok(token::Token::IDENT("i".to_string()), "i"),
+            tok(token::Token::RPAREN, ")"),
+            tok(token::Token::LBRACE, "{"),
+            tok(token::Token::IDENT("i".to_string()), "i"),
+            tok(token::Token::ASSIGN, "="),
+            tok(token::Token::IDENT("i".to_string()), "i"),
+            tok(token::Token::PLUS, "+"),
+            tok(token::Token::INT("1".to_string()), "1"),
+            tok(token::Token::SEMICOLON, ";"),
+            tok(token::Token::RBRACE, "}"),
             tok(token::Token::EOF, "EOF"),
         ];
 
         for t in tests {
             let tok = l.next_token();
+            println!("{:?}, {:?}", &tok, &t.0);
             assert!(token::cmp(&tok, &t.0));
             assert_eq!(tok.literal(), t.1);
         }

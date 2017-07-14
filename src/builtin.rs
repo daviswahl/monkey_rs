@@ -17,6 +17,7 @@ pub enum Builtin {
     Push,
     Eval,
     Stats,
+    While,
 }
 
 impl Builtin {
@@ -35,11 +36,12 @@ impl Builtin {
             &Builtin::Eval => check_arity_1(args).and_then(|arg1| eval(arg1, env)),
             &Builtin::Push => check_arity_2(args).and_then(|(arg1, arg2)| push(arg1, arg2)),
             &Builtin::Stats => check_arity_0(args).and_then(|_| stats(env, runtime)),
+            &Builtin::While => check_arity_0(args).and_then(|_| stats(env, runtime)),
         }
     }
 }
 
-pub static BUILTINS: [(&'static str, Builtin); 8] = [
+pub static BUILTINS: [(&'static str, Builtin); 9] = [
     ("len", Builtin::Len),
     ("print", Builtin::Print),
     ("first", Builtin::First),
@@ -48,6 +50,7 @@ pub static BUILTINS: [(&'static str, Builtin); 8] = [
     ("push", Builtin::Push),
     ("eval", Builtin::Eval),
     ("stats", Builtin::Stats),
+    ("while", Builtin::While),
 ];
 
 fn check_arity_0(args: Vec<Rc<object::Object>>) -> Result<(), String> {

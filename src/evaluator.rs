@@ -311,6 +311,8 @@ impl Evaluator {
             }
 
             Let(stmt) => self.visit_let_statement(stmt, env),
+
+            BlockArgument(block) => unimplemented!(),
         }
     }
 }

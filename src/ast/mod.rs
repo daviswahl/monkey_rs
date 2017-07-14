@@ -37,6 +37,7 @@ pub enum Statement {
     Return(ReturnStatement),
     Expression(ExpressionStatement),
     Block(BlockStatement),
+    BlockArgument(BlockArgument),
 }
 
 impl HasToken for Statement {
@@ -46,6 +47,7 @@ impl HasToken for Statement {
             Statement::Return(ref stmt) => stmt.token_literal(),
             Statement::Expression(ref stmt) => stmt.token_literal(),
             Statement::Block(ref stmt) => stmt.token_literal(),
+            Statement::BlockArgument(ref stmt) => stmt.token_literal(),
         }
     }
 }
@@ -57,6 +59,7 @@ impl fmt::Display for Statement {
             Statement::Return(ref stmt) => stmt.fmt(f),
             Statement::Expression(ref stmt) => stmt.fmt(f),
             Statement::Block(ref stmt) => stmt.fmt(f),
+            Statement::BlockArgument(ref stmt) => stmt.fmt(f),
         }
     }
 }
@@ -407,6 +410,30 @@ impl fmt::Display for BlockStatement {
 }
 
 #[derive(Debug, PartialEq, Clone)]
+pub struct BlockArgument {
+    pub token: token::Token,
+    pub parameters: Vec<Expression>,
+    pub block: Box<Node>,
+}
+
+impl HasToken for BlockArgument {
+    fn token_literal(&self) -> String {
+        self.token.literal()
+    }
+}
+
+impl fmt::Display for BlockArgument {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+       let params: String = self.parameters
+            .iter()
+            .map(|p| format!("{}", p))
+            .collect::<Vec<String>>()
+            .join(",");
+        write!(f, "|{}| {}", params, self.block)
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub struct BuiltinFunction {
     pub token: token::Token,
 }
@@ -452,6 +479,7 @@ pub struct CallExpression {
     pub token: token::Token,
     pub function: Box<Expression>,
     pub arguments: Vec<Expression>,
+    pub block: Option<Box<Statement>>,
 }
 
 impl HasToken for CallExpression {

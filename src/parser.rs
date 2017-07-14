@@ -173,26 +173,7 @@ impl<'a> Parser<'a> {
         if self.cur_token_is(&Token::LBRACKET) && self.peek_token_is(&Token::RBRACKET) {
             return vec![];
         }
-
-        let mut args: Vec<ast::Expression> = vec![];
-
-        self.parse_expression(Precedence::LOWEST).map(|exp| {
-            args.push(exp)
-        });
-
-        while self.peek_token_is(&Token::COMMA) {
-            self.next_token();
-            self.next_token();
-            self.parse_expression(Precedence::LOWEST).map(|exp| {
-                args.push(exp)
-            });
-        }
-
-        if !self.expect_peek(&Token::RBRACKET) {
-            return vec![];
-        }
-        self.next_token();
-        args
+        self.slurp_to(&Token::RBRACKET)
     }
 
     fn parse_builtin(&mut self) -> Option<ast::Expression> {
@@ -205,7 +186,37 @@ impl<'a> Parser<'a> {
             token: self.next_token(),
             function: Box::new(func),
             arguments: self.parse_call_arguments(),
+            block: self.parse_call_block().map(Box::new),
         }))
+    }
+
+    fn parse_call_block(&mut self) -> Option<ast::Statement> {
+        use token::Token::*;
+        if !self.peek_token_is(&LBRACE) {
+            return None;
+        };
+        self.next_token();
+        let token = self.next_token();
+
+        let parameters = self.parse_call_parameters();
+        self.parse_statement().map(|block| {
+            ast::Statement::BlockArgument(ast::BlockArgument {
+                token: token,
+                parameters: parameters,
+                block: Box::new(block),
+            })
+        })
+    }
+
+    fn parse_call_parameters(&mut self) -> Vec<ast::Expression> {
+        if !self.cur_token_is(&Token::BAR) {
+            self.next_token();
+            return vec![];
+        }
+        self.next_token();
+        let result = self.slurp_to(&Token::BAR);
+        self.next_token();
+        result
     }
 
     fn parse_call_arguments(&mut self) -> Vec<ast::Expression> {
@@ -214,25 +225,7 @@ impl<'a> Parser<'a> {
             self.next_token();
             return vec![];
         }
-        let mut args = vec![];
-
-        self.parse_expression(Precedence::LOWEST).map(|exp| {
-            args.push(exp)
-        });
-
-        while self.peek_token_is(&COMMA) {
-            self.next_token();
-            self.next_token();
-            self.parse_expression(Precedence::LOWEST).map(|exp| {
-                args.push(exp)
-            });
-        }
-
-        if !self.expect_peek(&RPAREN) {
-            return vec![];
-        }
-        self.next_token();
-        args
+        self.slurp_to(&RPAREN)
     }
 
     fn parse_fn_literal(&mut self) -> Option<ast::Expression> {
@@ -262,7 +255,6 @@ impl<'a> Parser<'a> {
             self.next_token();
             return vec![];
         }
-
         self.next_token();
         let mut params = vec![];
 
@@ -496,6 +488,27 @@ impl<'a> Parser<'a> {
         }
         Ok(ast::Node::Program(ast::Program { statements: statements }))
     }
+
+    fn slurp_to(&mut self, terminal: &token::Token) -> Vec<ast::Expression> {
+        let mut args = vec![];
+        self.parse_expression(Precedence::LOWEST).map(|exp| {
+            args.push(exp)
+        });
+
+        while self.peek_token_is(&token::Token::COMMA) {
+            self.next_token();
+            self.next_token();
+            self.parse_expression(Precedence::LOWEST).map(|exp| {
+                args.push(exp)
+            });
+        }
+
+        if !self.expect_peek(terminal) {
+            return vec![];
+        }
+        self.next_token();
+        args
+    }
 }
 
 
@@ -503,6 +516,24 @@ impl<'a> Parser<'a> {
 mod tests {
     use super::*;
     use token::Token::*;
+
+
+    #[test]
+    fn test_block_argument() {
+        let p = make_parser("while() { |a,b| 3 + 1; }; 1");
+        let prog = assert_no_errors(p.parse());
+        assert_program(&prog, |program| {
+            assert_statement_expression(&program.statements[0], |stmt| {
+                assert_call(&stmt, |call| {
+                    println!("{:?}", call.block);
+                    assert_block_argument(&*call.block.as_ref().unwrap(), |block| {
+                        assert_ident(&block.parameters[0], "a");
+                    })
+                })
+            });
+            assert_statement_expression(&program.statements[1], |_| {});
+        });
+    }
 
     #[test]
     fn test_update_expression() {
@@ -942,6 +973,17 @@ foobar;
     fn make_lexer(s: &str) -> lexer::Lexer {
         lexer::Lexer::new(s)
     }
+
+    fn assert_block_argument<F>(n: &ast::Statement, f: F)
+    where
+        F: Fn(&ast::BlockArgument),
+    {
+        match *n {
+            ast::Statement::BlockArgument(ref block) => f(block),
+            ref x => assert!(false, "expected block argument, got: {}", x),
+        }
+    }
+
 
     fn assert_index<F>(n: &ast::Expression, f: F)
     where

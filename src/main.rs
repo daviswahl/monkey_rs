@@ -19,12 +19,11 @@ fn eval_file(s: String) {
     let f = fs::File::open(p);
     let mut buf: String = String::new();
     let environment = monkey_parser::environment::Environment::new();
-
     match f {
         Ok(mut file) => {
             file.read_to_string(&mut buf).map(|_| {
-                monkey_parser::eval(buf.as_str(), environment)
-            })
+                monkey_parser::eval(buf.as_str(), environment);
+            });
         },
         Err(e) => println!("Error: {}", e)
     };
