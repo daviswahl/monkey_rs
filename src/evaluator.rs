@@ -200,7 +200,9 @@ impl Evaluator {
     fn visit_call_expression(&self, expr: ast::CallExpression, env: Env) -> ObjectResult {
         let function = self.visit_expr(*expr.function, env.clone())?;
         let args = self.visit_expressions(expr.arguments, env.clone())?;
-        let block = expr.block.and_then(|block| self.visit_statement(*block, env.clone()).ok());
+        let block = expr.block.and_then(|block| self.visit_statement(*block, env.clone()).ok()).or(
+            env.borrow().block().clone()
+        );
         self.apply_function(function, args, block, env)
     }
 
