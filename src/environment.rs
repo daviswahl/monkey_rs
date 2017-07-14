@@ -8,14 +8,14 @@ use ast;
 pub struct Environment {
     outer: Option<Rc<RefCell<Environment>>>,
     env: HashMap<String, Object>,
-    block: Option<Rc<Object>>,
+    block: Option<Object>,
 }
 
 pub fn extend_function_env(
     parameters: &Vec<ast::IdentifierExpression>,
     env: Rc<RefCell<Environment>>,
-    args: Vec<Rc<Object>>,
-    block: Option<Rc<Object>>
+    args: &Vec<Object>,
+    block: Option<Object>
 ) -> Result<Environment, String> {
     let mut extended = extend(env, block);
 
@@ -34,7 +34,7 @@ pub fn extend_function_env(
     Ok(extended)
 }
 
-pub fn extend(env: Rc<RefCell<Environment>>, block: Option<Rc<Object>>) -> Environment {
+pub fn extend(env: Rc<RefCell<Environment>>, block: Option<Object>) -> Environment {
         Environment {
             block: block,
             outer: Some(env),
@@ -50,17 +50,17 @@ impl Environment {
         }))
     }
 
-    pub fn get(&self, ident: String) -> Option<Rc<Object>> {
+    pub fn get(&self, ident: String) -> Option<Object> {
         self.env.get(&ident).map(|e| e.clone()).or(
             self.outer.as_ref().and_then(|e| e.borrow().get(ident)),
         )
     }
 
-    pub fn set(&mut self, ident: String, obj: Rc<Object>) {
+    pub fn set(&mut self, ident: String, obj: Object) {
         self.env.insert(ident, obj);
     }
 
-    pub fn update(&mut self, ident: String, obj: Rc<Object>) -> Result<(), String> {
+    pub fn update(&mut self, ident: String, obj: Object) -> Result<(), String> {
         if self.env.contains_key(&ident) {
             self.env.insert(ident, obj);
             return Ok(());
@@ -73,10 +73,8 @@ impl Environment {
 
 
 
-    pub fn block(&self) -> Option<Rc<Object>> {
-        self.block.as_ref().map(|b| b.clone()).or(
-            self.outer.as_ref().and_then(|e| e.borrow().block())
-        )
+    pub fn block(&self) -> &Option<Object> {
+        &self.block
     }
 
     pub fn stats(&self, indent: i32) {
@@ -88,7 +86,7 @@ impl Environment {
         }
 
         for (key, value) in self.env.iter() {
-            println!("{}{}: {}", indentation, key, Rc::strong_count(&value));
+            //println!("{}{}: {}", indentation, key, Rc::strong_count(&value));
         }
 
         self.outer.as_ref().map(
@@ -109,27 +107,27 @@ mod tests {
 
         env.borrow_mut().set(
             String::from("foo"),
-            Rc::new(Object::Null),
+            Object::Null,
         );
 
         {
             let mut env2 = extend(env.clone(), None);
 
-            env2.set(String::from("bar"), Rc::new(Object::Boolean(false)));
+            env2.set(String::from("bar"), Object::Boolean(false));
 
             assert_eq!(
                 env2.get(String::from("bar")).unwrap(),
-                Rc::new(Object::Boolean(false))
+                Object::Boolean(false)
             );
             assert_eq!(
                 env2.borrow().get(String::from("foo")).unwrap(),
-                Rc::new(Object::Null)
+                Object::Null
             );
         }
 
         assert_eq!(
             env.as_ref().borrow().get(String::from("foo")).unwrap(),
-            Rc::new(Object::Null)
+            Object::Null
         );
     }
 

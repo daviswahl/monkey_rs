@@ -7,8 +7,10 @@ pub fn run() {
     use std::io;
 
     use std::io::Write;
+    use runtime;
     let mut input = String::new();
     let env = Environment::new();
+    let evaluator = evaluator::Evaluator { runtime: runtime::new() };
 
     print!("> ");
     match io::stdout().flush() {
@@ -19,11 +21,11 @@ pub fn run() {
 
     while let Ok(_) = io::stdin().read_line(&mut input) {
         match parser::parse(input.as_str()) {
-            Ok(node) => match evaluator::eval(node, env.clone()) {
+            Ok(node) => match evaluator::eval(node, env.clone(), &evaluator) {
                 Ok(result) => {
-                    match * result {
-                        object::Object::Null => (),
-                        _ => println ! ("{}", result),
+                    match result.unwrap_ref(file!(), line!()) {
+                        &object::Object::Null => (),
+                        r => println ! ("{:?}", r),
                     }
                 },
                 Err(e) => println ! ("Error: {}", e),

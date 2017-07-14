@@ -1,5 +1,5 @@
 use ast;
-use object::{Object, ObjectResult,ObjectsResult};
+use object::{Object, ObjectResult};
 use environment;
 use environment::Environment;
 use std::rc::Rc;
@@ -13,6 +13,8 @@ pub struct Evaluator {
 }
 
 type Env = Rc<RefCell<Environment>>;
+pub type EvalResult<'a> = Result<ObjectResult<'a>, String>;
+
 fn is_truthy(obj: &Object) -> bool {
     match obj {
         &Object::Boolean(true) => true,
@@ -20,22 +22,19 @@ fn is_truthy(obj: &Object) -> bool {
     }
 }
 
-
-
-
-impl Evaluator {
-    fn visit_expr(&self, expr: ast::Expression, env: Env) -> ObjectResult {
+impl<'a> Evaluator {
+    fn visit_expr(&'a self, expr: ast::Expression, env: Env) -> EvalResult<'a> {
         use ast::Expression::*;
         use ast::HasToken;
         match expr {
-            Integer(ref int) => Ok(Rc::new(Object::Integer(int.value))),
-            Boolean(b) => Ok(self.runtime.bool(b.value)),
-            String(ref s) => Ok(Rc::new(Object::StringLiteral(s.token.literal()))),
+            Integer(ref int) => Ok(Object::Integer(int.value).into()),
+            Boolean(b) => Ok(self.runtime.bool(b.value).into()),
+            String(ref s) => Ok(Object::StringLiteral(s.token.literal()).into()),
 
             Prefix(prefix) => {
                 let op = prefix.operator;
                 self.visit_expr(*prefix.right, env).and_then(|right| {
-                    self.visit_prefix_expression(op.as_str(), &*right)
+                    self.visit_prefix_expression(op.as_str(), &right.unwrap_value(file!(), line!()))
                 })
             }
 
@@ -45,11 +44,11 @@ impl Evaluator {
                 let right = self.visit_expr(*infix.right, env.clone())?;
 
                 if op == "=" {
-                    self.visit_update_assignment(*left, right, env)
+                    self.visit_update_assignment(*left, right.unwrap_value(file!(), line!()), env)
                 } else {
 
                     self.visit_expr(*left, env).and_then(|left| {
-                        self.eval_infix_expression(op.as_str(), &left, &right)
+                        self.eval_infix_expression(op.as_str(), left.unwrap_ref(file!(), line!()), right.unwrap_ref(file!(), line!()))
                     })
                 }
             }
@@ -62,7 +61,7 @@ impl Evaluator {
 
             Call(exp) => self.visit_call_expression(exp, env),
 
-            Builtin(builtin) => Ok(Rc::new(Object::BuiltinFunction(builtin.clone()))),
+            Builtin(builtin) => Ok(Object::BuiltinFunction(builtin.clone()).into()),
 
             Array(exp) => self.visit_array_expression(exp, env),
 
@@ -72,52 +71,52 @@ impl Evaluator {
     }
 
     fn visit_update_assignment(
-        &self,
+        &'a self,
         expr: ast::Expression,
-        obj: Rc<Object>,
+        obj: Object,
         env: Env,
-    ) -> ObjectResult {
+    ) -> EvalResult<'a> {
 
         match expr {
             ast::Expression::Identifier(exp) => {
                 env.as_ref().borrow_mut().update(exp.value, obj).map(|_| {
-                    self.runtime.NULL()
+                    self.runtime.NULL().into()
                 })
             }
             _ => Err(format!("expected identifier expression, got: {}", expr)),
         }
     }
 
-    fn eval_bang_prefix_op_exp(&self, obj: &Object) -> ObjectResult {
+    fn eval_bang_prefix_op_exp(&'a self, obj: &Object) -> EvalResult<'a> {
         let result = match *obj {
             Object::Boolean(true) => self.runtime.bool(false),
             Object::Boolean(false) => self.runtime.bool(true),
             Object::Null => self.runtime.bool(true),
             _ => self.runtime.bool(false),
         };
-        Ok(result)
+        Ok(result.into())
     }
 
-    fn eval_infix_expression(&self, op: &str, left: &Object, right: &Object) -> ObjectResult {
+    fn eval_infix_expression(&'a self, op: &str, left: &Object, right: &Object) -> EvalResult<'a> {
         let result = match (left, right) {
             (&Object::Integer(l), &Object::Integer(r)) => {
                 match op {
-                    "/" => Rc::new(Object::Integer(l / r)),
-                    "*" => Rc::new(Object::Integer(l * r)),
-                    "-" => Rc::new(Object::Integer(l - r)),
-                    "+" => Rc::new(Object::Integer(l + r)),
+                    "/" => Object::Integer(l / r).into(),
+                    "*" => Object::Integer(l * r).into(),
+                    "-" => Object::Integer(l - r).into(),
+                    "+" => Object::Integer(l + r).into(),
 
-                    ">" => self.runtime.bool(l > r),
-                    "<" => self.runtime.bool(l < r),
-                    "==" => self.runtime.bool(l == r),
-                    "!=" => self.runtime.bool(l != r),
+                    ">" => self.runtime.bool(l > r).into(),
+                    "<" => self.runtime.bool(l < r).into(),
+                    "==" => self.runtime.bool(l == r).into(),
+                    "!=" => self.runtime.bool(l != r).into(),
                     x => return Err(format!("unknown operator: {} {} {}", left, x, right)),
                 }
             }
             (&Object::Boolean(l), &Object::Boolean(r)) => {
                 match op {
-                    "==" => self.runtime.bool(l == r),
-                    "!=" => self.runtime.bool(l != r),
+                    "==" => self.runtime.bool(l == r).into(),
+                    "!=" => self.runtime.bool(l != r).into(),
                     x => return Err(format!("unknown operator: {} {} {}", left, x, right)),
                 }
             }
@@ -126,7 +125,7 @@ impl Evaluator {
                     "++" => {
                         let mut new = l.clone();
                         new.push_str(r);
-                        Rc::new(Object::StringLiteral(new.to_string()))
+                        Object::StringLiteral(new.to_string()).into()
                     }
                     x => return Err(format!("unknown operator: {} {} {}", left, x, right)),
                 }
@@ -136,77 +135,84 @@ impl Evaluator {
         Ok(result)
     }
 
-    fn eval_minus_prefix_op_exp(&self, obj: &Object) -> ObjectResult {
+    fn eval_minus_prefix_op_exp(&'a self, obj: &Object) -> EvalResult<'a> {
         let result = match *obj {
             Object::Integer(int) => Object::Integer(-int),
             ref t => return Err(format!("unknown operator: -{}", t)),
         };
-        Ok(Rc::new(result))
+        Ok(result.into())
     }
 
-    fn visit_index_expression(&self, exp: ast::IndexExpression, env: Env) -> ObjectResult {
+    fn visit_index_expression(&'a self, exp: ast::IndexExpression, env: Env) -> EvalResult<'a> {
         let l = exp.left;
         let i = exp.index;
         self.visit_expr(*l, env.clone()).and_then(move |left| {
-            if let Object::ArrayLiteral(ref array) = *left {
-                self.visit_expr(*i, env).and_then(|index| {
-                    if let Object::Integer(i) = *index {
-                        if i <= array.len() as i64 {
-                            Ok(array[i as usize].clone())
-                        } else {
-                            Err(format!(
-                                "error, indexed out of range: {}, length: {}",
-                                i,
-                                array.len()
-                            ))
+            match left.unwrap_value(file!(), line!()) {
+                Object::ArrayLiteral(ref array) => {
+                    self.visit_expr(*i, env).and_then(|index| {
+                        match index.unwrap_value(file!(), line!()) {
+                            Object::Integer(i) => {
+                                if i <= array.len() as i64 {
+                                    Ok(array[i as usize].clone().into())
+                                } else {
+                                    Err(format!(
+                                        "error, indexed out of range: {}, length: {:?}",
+                                        i,
+                                        array.len()
+                                    ))
+                                }
+                            }
+                            v => Err(format!("cannot index out of array with type: {:?}", v))
                         }
-                    } else {
-                        Err(format!("cannot index out of array with type: {}", index))
-                    }
-                })
-            } else {
-                return Err(format!("Expected array literal, got: {}", left));
+                    })
+                },
+                v => return Err(format!("Expected array literal, got: {:?}", v))
             }
         })
     }
 
-    fn visit_array_expression(&self, exp: ast::ArrayLiteral, env: Env) -> ObjectResult {
+    fn visit_array_expression(&'a self, exp: ast::ArrayLiteral, env: Env) -> EvalResult<'a> {
         self.visit_expressions(exp.elements, env).map(|elements| {
-            Rc::new(Object::ArrayLiteral(elements))
+            Object::ArrayLiteral(elements.into()).into()
         })
     }
 
-    fn apply_function(&self, func: Rc<Object>, args: Vec<Rc<Object>>, block: Option<Rc<Object>>, env: Env) -> ObjectResult {
-        match *func {
+    fn apply_function(
+        &'a self,
+        func: Object,
+        args: Vec<Object>,
+        block: Option<Object>,
+        env: Env,
+    ) -> EvalResult<'a> {
+        match func {
             Object::Function(ref parameters, ref body, ref func_env) => {
-                let env = environment::extend_function_env(parameters, func_env.clone(), args, block)?;
+                let env =
+                    environment::extend_function_env(parameters, func_env.clone(), &args, block)?;
                 self.visit_statement(*body.clone(), Rc::new(RefCell::new(env)))
             }
-            Object::BuiltinFunction(ref tok) => {
-                builtin::call(tok, env, self, args)
-            },
+            Object::BuiltinFunction(ref tok) => builtin::call(tok, env, self, &args),
             ref x => Err(format!("expected function object, got {}", x)),
         }
     }
 
-    fn visit_expressions(&self, exprs: Vec<ast::Expression>, env: Env) -> ObjectsResult {
-        let mut results: Vec<Rc<Object>> = vec![];
+    fn visit_expressions(&'a self, exprs: Vec<ast::Expression>, env: Env) -> EvalResult<'a> {
+        let mut results: Vec<Object> = vec![];
         for expr in exprs.into_iter() {
-            results.push(self.visit_expr(expr, env.clone())?);
+            results.push(self.visit_expr(expr, env.clone())?.unwrap_value(file!(), line!()));
         }
-        Ok(results)
+        Ok(results.into())
     }
 
-    fn visit_call_expression(&self, expr: ast::CallExpression, env: Env) -> ObjectResult {
+    fn visit_call_expression(&'a self, expr: ast::CallExpression, env: Env) -> EvalResult<'a> {
         let function = self.visit_expr(*expr.function, env.clone())?;
         let args = self.visit_expressions(expr.arguments, env.clone())?;
-        let block = expr.block.and_then(|block| self.visit_statement(*block, env.clone()).ok()).or(
-            env.borrow().block().clone()
-        );
-        self.apply_function(function, args, block, env)
+        let block = expr.block
+            .and_then(|block| self.visit_statement(*block, env.clone()).ok()).map(|o| o.unwrap_value(file!(), line!()));
+            //.or(env.borrow().block());
+        self.apply_function(function.unwrap_value(file!(), line!()), args.into(), block, env)
     }
 
-    fn visit_function_expression(&self, expr: ast::FunctionLiteral, env: Env) -> ObjectResult {
+    fn visit_function_expression(&'a self, expr: ast::FunctionLiteral, env: Env) -> EvalResult<'a> {
         let mut identifiers: Vec<ast::IdentifierExpression> = vec![];
         for param in expr.parameters.into_iter() {
             match param {
@@ -216,31 +222,29 @@ impl Evaluator {
         }
 
         let function = Object::Function(identifiers, expr.body.clone(), env);
-        Ok(Rc::new(function))
+        Ok(function.into())
     }
 
-    fn visit_identifier(&self, expr: ast::IdentifierExpression, env: Env) -> ObjectResult {
-        env.as_ref().borrow().get(expr.value.clone()).ok_or(
-            format!(
-                "unknown identifier: {}",
-                expr.value
-                    .clone()
-            ),
-        )
+    fn visit_identifier(&'a self, expr: ast::IdentifierExpression, env: Env) -> EvalResult<'a> {
+        env.as_ref()
+            .borrow()
+            .get(expr.value.clone())
+            .ok_or(format!("unknown identifier: {}", expr.value.clone()))
+            .map(|o| o.into())
     }
 
-    fn visit_cond_expression(&self, ifexp: ast::IfExpression, env: Env) -> ObjectResult {
+    fn visit_cond_expression(&'a self, ifexp: ast::IfExpression, env: Env) -> EvalResult<'a> {
         let cond = self.visit_expr(*ifexp.condition, env.clone())?;
-        if is_truthy(&cond) {
+        if is_truthy(cond.unwrap_ref(file!(), line!())) {
             self.visit_statement(*ifexp.consequence, env)
         } else if let Some(alt) = ifexp.alternative {
             self.visit_statement(*alt, env)
         } else {
-            Ok(self.runtime.NULL())
+            Ok(self.runtime.NULL().into())
         }
     }
 
-    fn visit_prefix_expression(&self, op: &str, right: &Object) -> ObjectResult {
+    fn visit_prefix_expression(&'a self, op: &str, right: &Object) -> EvalResult<'a> {
         match op {
             "!" => self.eval_bang_prefix_op_exp(right),
             "-" => self.eval_minus_prefix_op_exp(right),
@@ -248,42 +252,44 @@ impl Evaluator {
         }
     }
 
-    fn visit_program(&self, n: ast::Program, env: Env) -> ObjectResult {
+    fn visit_program(&'a self, n: ast::Program, env: Env) -> EvalResult<'a> {
         let result = self.visit_statements(n.statements, env)?;
-        if let Object::Return(ref ret) = *result {
-            Ok(ret.clone())
-        } else {
-            Ok(result.clone())
+        match result.unwrap_value(file!(), line!()) {
+            Object::Return(ret) => {
+                let unboxed = *ret;
+                Ok(unboxed.into())
+            }
+            r => Ok(r.into())
         }
     }
 
-    fn visit_statements(&self, stmts: Vec<ast::Node>, env: Env) -> ObjectResult {
+    fn visit_statements(&'a self, stmts: Vec<ast::Node>, env: Env) -> EvalResult<'a> {
         let mut result = self.runtime.NULL();
         for stmt in stmts.into_iter() {
             if let ast::Node::Statement(s) = stmt {
-                result = self.visit_statement(s, env.clone())?;
+                result = self.visit_statement(s, env.clone())?.unwrap_ref(file!(), line!());
                 if let Object::Return(_) = *result {
-                    return Ok(result);
+                    return Ok(result.into());
                 }
             }
         }
 
-        Ok(result)
+        Ok(result.into())
     }
 
-    fn visit_let_statement(&self, stmt: ast::LetStatement, env: Env) -> ObjectResult {
+    fn visit_let_statement(&'a self, stmt: ast::LetStatement, env: Env) -> EvalResult<'a> {
         let ident = stmt.name.value.to_owned();
         let value = self.visit_expr(*stmt.value, env.clone())?;
-        env.as_ref().borrow_mut().set(ident, value);
-        Ok(self.runtime.NULL())
+        env.as_ref().borrow_mut().set(ident, value.unwrap_value(file!(), line!()));
+        Ok(self.runtime.NULL().into())
     }
 
-    fn visit_block_statement(&self, block: ast::BlockStatement, env: Env) -> ObjectResult {
+    fn visit_block_statement(&'a self, block: ast::BlockStatement, env: Env) -> EvalResult<'a> {
         self.visit_statements(block.statements, env)
 
     }
 
-    fn visit_block_argument(&self, block: ast::BlockArgument, env: Env) -> ObjectResult {
+    fn visit_block_argument(&'a self, block: ast::BlockArgument, env: Env) -> EvalResult<'a> {
         let mut identifiers: Vec<ast::IdentifierExpression> = vec![];
         for param in block.parameters.into_iter() {
             match param {
@@ -292,10 +298,10 @@ impl Evaluator {
             }
         }
 
-        Ok(Rc::new(Object::BlockArgument(identifiers, block.block, env)))
+        Ok(Object::BlockArgument(identifiers, block.block, env).into())
     }
 
-    pub fn visit_statement(&self, stmt: ast::Statement, env: Env) -> ObjectResult {
+    pub fn visit_statement(&'a self, stmt: ast::Statement, env: Env) -> EvalResult<'a> {
         use ast::Statement::*;
         match stmt {
 
@@ -305,24 +311,21 @@ impl Evaluator {
 
             Return(ret) => {
                 let result = self.visit_expr(*ret.value, env)?;
-                Ok(Rc::new(Object::Return(result.clone())))
+                Ok(Object::Return(Box::new(result.unwrap_value(file!(), line!()))).into())
             }
 
             Let(stmt) => self.visit_let_statement(stmt, env),
 
-            BlockArgument(block) => {
-                self.visit_block_argument(block, env)
-            }
+            BlockArgument(block) => self.visit_block_argument(block, env),
 
         }
     }
 }
 
-pub fn eval(node: ast::Node, env: Env) -> ObjectResult {
+pub fn eval<'a>(node: ast::Node, env: Env, evaluator: &'a Evaluator) -> EvalResult<'a> {
     use ast::Node::*;
-    let visitor = Evaluator { runtime: runtime::new() };
     match node {
-        Program(program) => visitor.visit_program(program, env),
+        Program(program) => evaluator.visit_program(program, env),
         ref x => Err(format!("expected program, got {}", x)),
     }
 }
@@ -355,14 +358,17 @@ let sum = fn(arr) {
 sum([1,2,3,4,5]);
 ";
         let env = Environment::new();
-        assert_integer(assert_eval(input, env).as_ref(), 15);
+        assert_integer(&assert_eval(input, env), 15);
 
     }
     #[test]
     fn test_block_arguments() {
-        let input= ("let f = fn(a) { yield(a) }; f(\"in block\") { |a| a; };");
+        let input = ("let f = fn(a) { yield(a) }; f(\"in block\") { |a| a; };");
         let env = Environment::new();
-        assert_object(assert_eval(input, env).as_ref(), &Object::StringLiteral("in block".to_string()));
+        assert_object(
+            &assert_eval(input, env),
+            &Object::StringLiteral("in block".to_string()),
+        );
     }
 
     #[test]
@@ -375,14 +381,17 @@ sum([1,2,3,4,5]);
                 Object::Integer(3)
             ),
             ("let i = 2; fn () { i + 1; }(); i;", Object::Integer(2)),
-            ("let i = 0; let k = 10; let f = fn(){ if (i < k) { i = i + 1; k = k - 1;
-f() } }; f(); i;", Object::Integer(5)),
+            (
+                "let i = 0; let k = 10; let f = fn(){ if (i < k) { i = i + 1; k = k - 1;
+f() } }; f(); i;",
+                Object::Integer(5)
+            ),
         ];
 
         for t in tests {
             let env = Environment::new();
             println!("Testing: {}", t.0);
-            assert_object(assert_eval(t.0, env).as_ref(), &t.1);
+            assert_object(&assert_eval(t.0, env), &t.1);
         }
     }
 
@@ -397,7 +406,7 @@ f() } }; f(); i;", Object::Integer(5)),
 
         for t in tests {
             let env = Environment::new();
-            assert_integer(assert_eval(t.0, env).as_ref(), t.1)
+            assert_integer(&assert_eval(t.0, env), t.1)
         }
     }
     #[test]
@@ -421,7 +430,7 @@ f() } }; f(); i;", Object::Integer(5)),
 
         for t in tests {
             let env = Environment::new();
-            assert_array(assert_eval(t.0, env).as_ref(), t.1)
+            assert_array(&assert_eval(t.0, env), t.1)
         }
     }
 
@@ -429,7 +438,7 @@ f() } }; f(); i;", Object::Integer(5)),
     fn test_builtins() {
         let input = "len(\"foobar\");";
         let env = Environment::new();
-        assert_integer(assert_eval(input, env).as_ref(), 6);
+        assert_integer(&assert_eval(input, env), 6);
     }
 
     #[test]
@@ -441,14 +450,15 @@ f() } }; f(); i;", Object::Integer(5)),
 
         for t in tests {
             let env = Environment::new();
-            assert_error(eval(parser::parse(t.0).unwrap(), env), t.1)
+            let evaluator = Evaluator { runtime: runtime::new() };
+            assert_error(eval(parser::parse(t.0).unwrap(), env, &evaluator), t.1)
         }
     }
     #[test]
     fn test_builtin_eval() {
         let env = Environment::new();
         let input = "eval(\"let add = fn(a,b) { a + b; };\"); add(2,3);";
-        assert_integer(assert_eval(input, env).as_ref(), 5);
+        assert_integer(&assert_eval(input, env), 5);
     }
 
     #[test]
@@ -461,7 +471,7 @@ let addTwo = newAdder(2);
 addTwo(2);";
 
         let env = Environment::new();
-        assert_integer(assert_eval(input, env).as_ref(), 4)
+        assert_integer(&assert_eval(input, env), 4)
     }
 
     #[test]
@@ -478,7 +488,7 @@ addTwo(2);";
         for t in tests {
             let env = Environment::new();
             let evaluated = assert_eval(t.0, env);
-            assert_integer(evaluated.as_ref(), t.1)
+            assert_integer(&evaluated, t.1)
         }
 
     }
@@ -487,7 +497,7 @@ addTwo(2);";
         let input = "fn(x) { x + 2; };";
         let env = Environment::new();
         let evaluated = assert_eval(input, env);
-        assert_function_obj(evaluated.as_ref(), vec!["x"], "(x + 2)");
+        assert_function_obj(&evaluated, vec!["x"], "(x + 2)");
     }
 
     #[test]
@@ -502,7 +512,7 @@ addTwo(2);";
         for t in tests {
             let env = Environment::new();
             let evaluated = assert_eval(t.0, env);
-            assert_integer(evaluated.as_ref(), t.1);
+            assert_integer(&evaluated, t.1);
         }
     }
 
@@ -528,8 +538,9 @@ addTwo(2);";
 
         for t in tests {
             let env = Environment::new();
+            let evaluator = Evaluator { runtime: runtime::new() };
             let node = parser::parse(t.0).unwrap();
-            let evaluated = eval(node, env);
+            let evaluated = eval(node, env, &evaluator);
             assert_error(evaluated, t.1);
         }
     }
@@ -547,7 +558,7 @@ addTwo(2);";
         for t in tests {
             let env = Environment::new();
             let evaluated = assert_eval(t.0, env);
-            assert_integer(evaluated.as_ref(), t.1);
+            assert_integer(&evaluated, t.1);
         }
     }
 
@@ -570,7 +581,7 @@ addTwo(2);";
         for t in tests {
             let env = Environment::new();
             let evaluated = assert_eval(t.0, env);
-            assert_object(evaluated.as_ref(), &t.1);
+            assert_object(&evaluated, &t.1);
         }
     }
 
@@ -595,7 +606,7 @@ addTwo(2);";
         for test in tests {
             let env = Environment::new();
             let evaluated = assert_eval(test.0, env);
-            assert_integer(evaluated.as_ref(), test.1);
+            assert_integer(&evaluated, test.1);
         }
     }
 
@@ -605,7 +616,7 @@ addTwo(2);";
         for t in tests {
             let env = Environment::new();
             let evaluated = assert_eval(t.0, env);
-            assert_string(evaluated.as_ref(), t.1);
+            assert_string(&evaluated, t.1);
         }
     }
 
@@ -637,7 +648,7 @@ addTwo(2);";
         for t in tests {
             let env = Environment::new();
             let evaluated = assert_eval(t.0, env);
-            assert_bool(evaluated.as_ref(), t.1);
+            assert_bool(&evaluated, t.1);
         }
     }
 
@@ -654,7 +665,7 @@ addTwo(2);";
         for t in tests {
             let env = Environment::new();
             let evaluated = assert_eval(t.0, env);
-            assert_bool(evaluated.as_ref(), t.1)
+            assert_bool(&evaluated, t.1)
         }
     }
 
@@ -662,7 +673,7 @@ addTwo(2);";
         match obj {
             &Object::ArrayLiteral(ref array) => {
                 for (i, elem) in array.clone().iter().enumerate() {
-                    assert_eq!(**elem, expect[i])
+                    assert_eq!(*elem, expect[i])
                 }
             }
             x => assert!(false, "Expected string object, got {}", x),
@@ -698,7 +709,7 @@ addTwo(2);";
         }
     }
 
-    fn assert_error(result: ObjectResult, err: &str) {
+    fn assert_error<'a>(result: EvalResult<'a>, err: &str) {
         match result {
             Ok(error) => assert!(false, "Expected error {}, got: {:?}", err, error),
             Err(error) => assert_eq!(err, error),
@@ -712,13 +723,15 @@ addTwo(2);";
         }
     }
 
-    fn assert_eval(s: &str, env: Env) -> Rc<object::Object> {
+    fn assert_eval<'a>(s: &str, env: Env) -> Object {
         let node = parser::parse(s).unwrap();
-        match eval(node, env) {
-            Ok(e) => e.clone(),
+        use evaluator;
+        let evaluator = evaluator::Evaluator { runtime: runtime::new() };
+        match eval(node, env, &evaluator) {
+            Ok(e) => e.unwrap_value(file!(), line!()),
             Err(e) => {
                 assert!(false, format!("Expected program, got {:?}", e));
-                Rc::new(object::Object::Null)
+                Object::Null
             }
         }
     }

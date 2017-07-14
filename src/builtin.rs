@@ -1,9 +1,10 @@
 use object;
-use object::{ObjectResult, ObjectRefResult, Object};
+use object::{ObjectResult, Object};
 use token;
 use environment;
 use runtime;
 use evaluator;
+use evaluator::EvalResult;
 use std::fmt;
 use std::rc::Rc;
 use std::cell::RefCell;
@@ -23,19 +24,19 @@ pub enum Builtin {
 }
 
 impl Builtin {
-    fn call(
+    fn call<'a>(
         &self,
-        args: Vec<Object>,
+        args: &Vec<Object>,
         env: Rc<RefCell<environment::Environment>>,
-        evaluator: &evaluator::Evaluator,
-    ) -> ObjectResult {
+        evaluator: &'a evaluator::Evaluator,
+    ) -> EvalResult<'a> {
         match self {
             &Builtin::Len => check_arity_1(args).and_then(|arg1| len(arg1)),
             &Builtin::Print => check_arity_1(args).and_then(|arg1| print(arg1, &evaluator.runtime)),
             &Builtin::First => check_arity_1(args).and_then(|arg1| first(arg1)),
             &Builtin::Last => check_arity_1(args).and_then(|arg1| last(arg1)),
             &Builtin::Rest => check_arity_1(args).and_then(|arg1| rest(arg1)),
-            &Builtin::Eval => check_arity_1(args).and_then(|arg1| eval(arg1, env)),
+            &Builtin::Eval => check_arity_1(args).and_then(|arg1| eval(arg1, env, evaluator)),
             &Builtin::Push => check_arity_2(args).and_then(|(arg1, arg2)| push(arg1, arg2)),
             &Builtin::Stats => check_arity_0(args).and_then(|_| stats(env, &evaluator.runtime)),
             &Builtin::While => check_arity_0(args).and_then(|_| stats(env, &evaluator.runtime)),
@@ -57,23 +58,23 @@ pub static BUILTINS: [(&'static str, Builtin); 10] = [
     ("yield", Builtin::Yield),
 ];
 
-fn check_arity_0(args: Vec<Rc<object::Object>>) -> Result<(), String> {
+fn check_arity_0(args: &Vec<Object>) -> Result<(), String> {
     if args.len() == 0 {
         return Ok(());
     }
     Err(format!("expected 0 arguments, got {}", args.len()))
 }
 
-fn check_arity_1(args: Vec<Rc<object::Object>>) -> Result<(Rc<Object>), String> {
+fn check_arity_1(args: &Vec<Object>) -> Result<(&Object), String> {
     if args.len() == 1 {
-        return Ok((args[0].clone()));
+        return Ok((&args[0]));
     }
     Err(format!("expected 1 argument, got {}", args.len()))
 }
 
-fn check_arity_2(args: Vec<Rc<object::Object>>) -> Result<(Rc<Object>, Rc<Object>), String> {
+fn check_arity_2(args: &Vec<Object>) -> Result<(&Object, &Object), String> {
     if args.len() == 2 {
-        return Ok((args[0].clone(), args[1].clone()));
+        return Ok((&args[0], &args[1]));
     }
     Err(format!("expected 2 arguments, got {}", args.len()))
 }
@@ -103,12 +104,12 @@ pub fn is_builtin(s: &str) -> bool {
     BUILTINS.iter().any(|&(ref b, _)| b == &s)
 }
 
-pub fn call(
+pub fn call<'a>(
     tok: &token::Token,
     env: Rc<RefCell<environment::Environment>>,
-    evaluator: &evaluator::Evaluator,
-    args: Vec<Rc<object::Object>>,
-) -> ObjectResult {
+    evaluator: &'a evaluator::Evaluator,
+    args: &Vec<object::Object>,
+) -> EvalResult<'a> {
     from_token(tok).and_then(|builtin| builtin.call(args, env, evaluator))
 }
 
@@ -118,83 +119,92 @@ impl fmt::Display for Builtin {
     }
 }
 
-fn len(arg: &Object) -> ObjectResult {
+fn len<'a>(arg: &Object) -> EvalResult<'a> {
     match *arg {
-        Object::StringLiteral(ref s) => Ok(Object::Integer(s.len() as i64)),
-        Object::ArrayLiteral(ref array) => Ok(Object::Integer(array.len() as i64)),
+        Object::StringLiteral(ref s) => Ok(Object::Integer(s.len() as i64).into()),
+        Object::ArrayLiteral(ref array) => Ok(Object::Integer(array.len() as i64).into()),
         ref x => Err(format!("len: unsupported type {}", x)),
     }
 }
 
-fn print<'a>(arg: Rc<Object>, runtime: &'a runtime::Runtime) -> ObjectRefResult<'a> {
+fn print<'a>(arg: &Object, runtime: &'a runtime::Runtime) -> EvalResult<'a> {
     println!("{}", arg);
-    Ok(runtime.NULL())
+    Ok(runtime.NULL().into())
 }
 
-fn last(arg: Rc<Object>) -> ObjectResult {
+fn last<'a>(arg: &Object) -> EvalResult<'a> {
     match *arg {
-        Object::ArrayLiteral(ref array) => Ok(array.get(array.len() - 1).unwrap().clone()),
+        Object::ArrayLiteral(ref array) => Ok(array.get(array.len() - 1).unwrap().clone().into()),
         ref x => Err(format!("first: unsupported type {}", x)),
     }
 }
 
-fn first(arg: Object) -> ObjectResult {
+fn first<'a>(arg: &Object) -> EvalResult<'a> {
     match *arg {
-        Object::ArrayLiteral(ref array) => Ok(array.get(0).unwrap().clone()),
+        Object::ArrayLiteral(ref array) => Ok(array.get(0).unwrap().clone().into()),
         ref x => Err(format!("first: unsupported type {}", x)),
     }
 }
 
-fn push(array: &Object, value: Object) -> ObjectResult {
+fn push<'a>(array: &Object, value: &Object) -> EvalResult<'a> {
     match *array {
         Object::ArrayLiteral(ref array) => {
             let mut new = array.clone();
-            new.push(value);
-            Ok(Object::ArrayLiteral(new))
+            new.push(value.clone());
+            Ok(Object::ArrayLiteral(new).into())
         }
         ref x => Err(format!("first: unsupported type {}", x)),
     }
 }
 
-fn eval<'a>(arg: Object, env: Rc<RefCell<environment::Environment>>) -> ObjectResult<'a> {
+fn eval<'a>(arg: &Object, env: Rc<RefCell<environment::Environment>>, evaluator: &'a evaluator::Evaluator) -> EvalResult<'a> {
 
     use parser;
     use evaluator;
     match *arg {
         Object::StringLiteral(ref string) => {
             let program = parser::parse(string).expect("could not parse");
-            evaluator::eval(program, env)
+            evaluator::eval(program, env, evaluator)
         }
         ref x => Err(format!("first: unsupported tpye {}", x)),
     }
 }
 
-fn stats<'a>(env: Rc<RefCell<environment::Environment>>, runtime: &'a runtime::Runtime) -> ObjectRefResult<'a> {
+fn stats<'a>(
+    env: Rc<RefCell<environment::Environment>>,
+    runtime: &'a runtime::Runtime,
+) -> EvalResult<'a> {
     runtime.stats();
     env.borrow().stats(0);
-    Ok(runtime.NULL())
+    Ok(runtime.NULL().into())
 }
 
-fn rest<'a>(arg: &Object) -> ObjectResult<'a> {
+fn rest<'a>(arg: &Object) -> EvalResult<'a> {
     match arg {
         &Object::ArrayLiteral(ref array) => {
             array
                 .split_first()
-                .map(|(_, tail)| Object::ArrayLiteral(tail.to_owned()))
+                .map(|(_, tail)| Object::ArrayLiteral(tail.to_owned()).into())
                 .ok_or("could not split vec".to_string())
         }
         ref x => Err(format!("first: unsupported type {}", x)),
     }
 }
 
-fn _yield<'a>(args: Vec<Rc<Object>>, env: Rc<RefCell<environment::Environment>>, evaluator: &evaluator::Evaluator) -> ObjectResult<'a> {
-    let block = env.borrow().block().ok_or(format!("yield called but no block given"))?;
-    match *block {
-        Object::BlockArgument(ref params, ref stmt, ref block_env) => {
-           let extended_env = environment::extend_function_env(&params, block_env.clone(), args, None)?;
-           evaluator.visit_statement(*stmt.clone(), Rc::new(RefCell::new(extended_env)))
+fn _yield<'a>(
+    args: &Vec<Object>,
+    env: Rc<RefCell<environment::Environment>>,
+    evaluator: &'a evaluator::Evaluator,
+) -> EvalResult<'a> {
+    let borrow = env.borrow();
+    let block = borrow.block();
+    match block.as_ref().unwrap() {
+        &Object::BlockArgument(ref params, ref stmt, ref block_env) => {
+            let extended_env =
+                environment::extend_function_env(&params, block_env.clone(), args, None)?;
+            evaluator.visit_statement(*stmt.clone(), Rc::new(RefCell::new(extended_env)))
         }
-        ref x => Err(format!("Expected block argument, got: {}", x))
+        ref x => Err(format!("Expected block argument, got: {}", x)),
     }
 
 }
