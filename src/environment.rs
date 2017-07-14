@@ -88,7 +88,7 @@ impl Environment {
         }
 
         for (key, value) in self.env.iter() {
-            println!("{}{}: {}", indentation, key, Rc::strong_count(value))
+            println!("{}{}: {}", indentation, key, Rc::strong_count(&value));
         }
 
         self.outer.as_ref().map(
