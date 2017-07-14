@@ -218,6 +218,7 @@ impl Evaluator {
     fn visit_call_expression(&self, expr: ast::CallExpression, env: Env) -> ObjectRcResult {
         let function = self.visit_expr(*expr.function, env.clone())?;
         let args = self.visit_expressions(expr.arguments, env.clone())?;
+        let block = expr.block.map(|block| self.visit_statement(*block, env.clone()).ok());
         self.apply_function(function, env, args)
     }
 
@@ -356,6 +357,13 @@ sum([1,2,3,4,5]);
         let env = Environment::new();
         assert_integer(assert_eval(input, env).as_ref(), 15);
 
+    }
+    #[test]
+    fn test_block_arguments() {
+        let input= ("let f = fn() {}; f() { |a| print(\"in block\"); };");
+        let env = Environment::new();
+        assert_eval(input, env);
+        assert!(false)
     }
     #[test]
     fn test_update_assignment() {
