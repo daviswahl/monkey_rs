@@ -18,7 +18,7 @@ pub enum Object {
 }
 
 
-pub type ObjectRcResult = Result<Rc<Object>, String>;
+pub type ObjectResult = Result<Rc<Object>, String>;
 pub type ObjectsResult = Result<Vec<Rc<Object>>, String>;
 
 impl fmt::Display for Object {

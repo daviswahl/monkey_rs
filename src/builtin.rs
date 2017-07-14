@@ -1,5 +1,5 @@
 use object;
-use object::{ObjectRcResult, Object};
+use object::{ObjectResult, Object};
 use token;
 use environment;
 use runtime;
@@ -26,7 +26,7 @@ impl Builtin {
         args: Vec<Rc<Object>>,
         env: Rc<RefCell<environment::Environment>>,
         runtime: &runtime::Runtime,
-    ) -> ObjectRcResult {
+    ) -> ObjectResult {
         match self {
             &Builtin::Len => check_arity_1(args).and_then(|arg1| len(arg1)),
             &Builtin::Print => check_arity_1(args).and_then(|arg1| print(arg1, runtime)),
@@ -104,7 +104,7 @@ pub fn call(
     env: Rc<RefCell<environment::Environment>>,
     runtime: &runtime::Runtime,
     args: Vec<Rc<object::Object>>,
-) -> ObjectRcResult {
+) -> ObjectResult {
     from_token(tok).and_then(|builtin| builtin.call(args, env, runtime))
 }
 
@@ -114,7 +114,7 @@ impl fmt::Display for Builtin {
     }
 }
 
-fn len(arg: Rc<Object>) -> ObjectRcResult {
+fn len(arg: Rc<Object>) -> ObjectResult {
     match *arg {
         Object::StringLiteral(ref s) => Ok(Rc::new(Object::Integer(s.len() as i64))),
         Object::ArrayLiteral(ref array) => Ok(Rc::new(Object::Integer(array.len() as i64))),
@@ -122,26 +122,26 @@ fn len(arg: Rc<Object>) -> ObjectRcResult {
     }
 }
 
-fn print(arg: Rc<Object>, runtime: &runtime::Runtime) -> ObjectRcResult {
+fn print(arg: Rc<Object>, runtime: &runtime::Runtime) -> ObjectResult {
     println!("{}", arg);
     Ok(runtime.NULL())
 }
 
-fn last(arg: Rc<Object>) -> ObjectRcResult {
+fn last(arg: Rc<Object>) -> ObjectResult {
     match *arg {
         Object::ArrayLiteral(ref array) => Ok(array.get(array.len() - 1).unwrap().clone()),
         ref x => Err(format!("first: unsupported type {}", x)),
     }
 }
 
-fn first(arg: Rc<Object>) -> ObjectRcResult {
+fn first(arg: Rc<Object>) -> ObjectResult {
     match *arg {
         Object::ArrayLiteral(ref array) => Ok(array.get(0).unwrap().clone()),
         ref x => Err(format!("first: unsupported type {}", x)),
     }
 }
 
-fn push(array: Rc<Object>, value: Rc<Object>) -> ObjectRcResult {
+fn push(array: Rc<Object>, value: Rc<Object>) -> ObjectResult {
     match *array {
         Object::ArrayLiteral(ref array) => {
             let mut new = array.clone();
@@ -152,7 +152,7 @@ fn push(array: Rc<Object>, value: Rc<Object>) -> ObjectRcResult {
     }
 }
 
-fn eval(arg: Rc<Object>, env: Rc<RefCell<environment::Environment>>) -> ObjectRcResult {
+fn eval(arg: Rc<Object>, env: Rc<RefCell<environment::Environment>>) -> ObjectResult {
 
     use parser;
     use evaluator;
@@ -165,13 +165,13 @@ fn eval(arg: Rc<Object>, env: Rc<RefCell<environment::Environment>>) -> ObjectRc
     }
 }
 
-fn stats(env: Rc<RefCell<environment::Environment>>, runtime: &runtime::Runtime) -> ObjectRcResult {
+fn stats(env: Rc<RefCell<environment::Environment>>, runtime: &runtime::Runtime) -> ObjectResult {
     runtime.stats();
     env.borrow().stats(0);
     Ok(runtime.NULL())
 }
 
-fn rest(arg: Rc<Object>) -> ObjectRcResult {
+fn rest(arg: Rc<Object>) -> ObjectResult {
     match *arg {
         Object::ArrayLiteral(ref array) => {
             array

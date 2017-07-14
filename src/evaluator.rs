@@ -1,5 +1,5 @@
 use ast;
-use object::{Object, ObjectRcResult,ObjectsResult};
+use object::{Object, ObjectResult,ObjectsResult};
 use environment::Environment;
 use std::rc::Rc;
 use std::cell::RefCell;
@@ -43,7 +43,7 @@ fn extend_function_env(
 }
 
 impl Evaluator {
-    fn visit_expr(&self, expr: ast::Expression, env: Env) -> ObjectRcResult {
+    fn visit_expr(&self, expr: ast::Expression, env: Env) -> ObjectResult {
         use ast::Expression::*;
         use ast::HasToken;
         match expr {
@@ -95,7 +95,7 @@ impl Evaluator {
         expr: ast::Expression,
         obj: Rc<Object>,
         env: Env,
-    ) -> ObjectRcResult {
+    ) -> ObjectResult {
 
         match expr {
             ast::Expression::Identifier(exp) => {
@@ -107,7 +107,7 @@ impl Evaluator {
         }
     }
 
-    fn eval_bang_prefix_op_exp(&self, obj: &Object) -> ObjectRcResult {
+    fn eval_bang_prefix_op_exp(&self, obj: &Object) -> ObjectResult {
         let result = match *obj {
             Object::Boolean(true) => self.runtime.bool(false),
             Object::Boolean(false) => self.runtime.bool(true),
@@ -117,7 +117,7 @@ impl Evaluator {
         Ok(result)
     }
 
-    fn eval_infix_expression(&self, op: &str, left: &Object, right: &Object) -> ObjectRcResult {
+    fn eval_infix_expression(&self, op: &str, left: &Object, right: &Object) -> ObjectResult {
         let result = match (left, right) {
             (&Object::Integer(l), &Object::Integer(r)) => {
                 match op {
@@ -155,7 +155,7 @@ impl Evaluator {
         Ok(result)
     }
 
-    fn eval_minus_prefix_op_exp(&self, obj: &Object) -> ObjectRcResult {
+    fn eval_minus_prefix_op_exp(&self, obj: &Object) -> ObjectResult {
         let result = match *obj {
             Object::Integer(int) => Object::Integer(-int),
             ref t => return Err(format!("unknown operator: -{}", t)),
@@ -163,7 +163,7 @@ impl Evaluator {
         Ok(Rc::new(result))
     }
 
-    fn visit_index_expression(&self, exp: ast::IndexExpression, env: Env) -> ObjectRcResult {
+    fn visit_index_expression(&self, exp: ast::IndexExpression, env: Env) -> ObjectResult {
         let l = exp.left;
         let i = exp.index;
         self.visit_expr(*l, env.clone()).and_then(move |left| {
@@ -189,14 +189,14 @@ impl Evaluator {
         })
     }
 
-    fn visit_array_expression(&self, exp: ast::ArrayLiteral, env: Env) -> ObjectRcResult {
+    fn visit_array_expression(&self, exp: ast::ArrayLiteral, env: Env) -> ObjectResult {
 
         self.visit_expressions(exp.elements, env).map(|elements| {
             Rc::new(Object::ArrayLiteral(elements))
         })
     }
 
-    fn apply_function(&self, func: Rc<Object>, env: Env, args: Vec<Rc<Object>>) -> ObjectRcResult {
+    fn apply_function(&self, func: Rc<Object>, env: Env, args: Vec<Rc<Object>>) -> ObjectResult {
         match *func {
             Object::Function(ref parameters, ref body, ref func_env) => {
                 let env = extend_function_env(parameters, func_env.clone(), args)?;
@@ -215,14 +215,14 @@ impl Evaluator {
         Ok(results)
     }
 
-    fn visit_call_expression(&self, expr: ast::CallExpression, env: Env) -> ObjectRcResult {
+    fn visit_call_expression(&self, expr: ast::CallExpression, env: Env) -> ObjectResult {
         let function = self.visit_expr(*expr.function, env.clone())?;
         let args = self.visit_expressions(expr.arguments, env.clone())?;
         let block = expr.block.map(|block| self.visit_statement(*block, env.clone()).ok());
         self.apply_function(function, env, args)
     }
 
-    fn visit_function_expression(&self, expr: ast::FunctionLiteral, env: Env) -> ObjectRcResult {
+    fn visit_function_expression(&self, expr: ast::FunctionLiteral, env: Env) -> ObjectResult {
         let mut identifiers: Vec<ast::IdentifierExpression> = vec![];
         for param in expr.parameters.into_iter() {
             match param {
@@ -235,7 +235,7 @@ impl Evaluator {
         Ok(Rc::new(function))
     }
 
-    fn visit_identifier(&self, expr: ast::IdentifierExpression, env: Env) -> ObjectRcResult {
+    fn visit_identifier(&self, expr: ast::IdentifierExpression, env: Env) -> ObjectResult {
         env.as_ref().borrow().get(expr.value.clone()).ok_or(
             format!(
                 "unknown identifier: {}",
@@ -245,7 +245,7 @@ impl Evaluator {
         )
     }
 
-    fn visit_cond_expression(&self, ifexp: ast::IfExpression, env: Env) -> ObjectRcResult {
+    fn visit_cond_expression(&self, ifexp: ast::IfExpression, env: Env) -> ObjectResult {
         let cond = self.visit_expr(*ifexp.condition, env.clone())?;
         if is_truthy(&cond) {
             self.visit_statement(*ifexp.consequence, env)
@@ -256,7 +256,7 @@ impl Evaluator {
         }
     }
 
-    fn visit_prefix_expression(&self, op: &str, right: &Object) -> ObjectRcResult {
+    fn visit_prefix_expression(&self, op: &str, right: &Object) -> ObjectResult {
         match op {
             "!" => self.eval_bang_prefix_op_exp(right),
             "-" => self.eval_minus_prefix_op_exp(right),
@@ -264,7 +264,7 @@ impl Evaluator {
         }
     }
 
-    fn visit_program(&self, n: ast::Program, env: Env) -> ObjectRcResult {
+    fn visit_program(&self, n: ast::Program, env: Env) -> ObjectResult {
         let result = self.visit_statements(n.statements, env)?;
         if let Object::Return(ref ret) = *result {
             Ok(ret.clone())
@@ -273,7 +273,7 @@ impl Evaluator {
         }
     }
 
-    fn visit_statements(&self, stmts: Vec<ast::Node>, env: Env) -> ObjectRcResult {
+    fn visit_statements(&self, stmts: Vec<ast::Node>, env: Env) -> ObjectResult {
         let mut result = self.runtime.NULL();
         for stmt in stmts.into_iter() {
             if let ast::Node::Statement(s) = stmt {
@@ -287,18 +287,18 @@ impl Evaluator {
         Ok(result)
     }
 
-    fn visit_let_statement(&self, stmt: ast::LetStatement, env: Env) -> ObjectRcResult {
+    fn visit_let_statement(&self, stmt: ast::LetStatement, env: Env) -> ObjectResult {
         let ident = stmt.name.value.to_owned();
         let value = self.visit_expr(*stmt.value, env.clone())?;
         env.as_ref().borrow_mut().set(ident, value);
         Ok(self.runtime.NULL())
     }
 
-    fn visit_block_statement(&self, block: ast::BlockStatement, env: Env) -> ObjectRcResult {
+    fn visit_block_statement(&self, block: ast::BlockStatement, env: Env) -> ObjectResult {
         self.visit_statements(block.statements, env)
     }
 
-    fn visit_statement(&self, stmt: ast::Statement, env: Env) -> ObjectRcResult {
+    fn visit_statement(&self, stmt: ast::Statement, env: Env) -> ObjectResult {
         use ast::Statement::*;
         match stmt {
 
@@ -318,7 +318,7 @@ impl Evaluator {
     }
 }
 
-pub fn eval(node: ast::Node, env: Env) -> ObjectRcResult {
+pub fn eval(node: ast::Node, env: Env) -> ObjectResult {
     use ast::Node::*;
     let visitor = Evaluator { runtime: runtime::new() };
     match node {
@@ -698,7 +698,7 @@ addTwo(2);";
         }
     }
 
-    fn assert_error(result: ObjectRcResult, err: &str) {
+    fn assert_error(result: ObjectResult, err: &str) {
         match result {
             Ok(error) => assert!(false, "Expected error {}, got: {:?}", err, error),
             Err(error) => assert_eq!(err, error),
