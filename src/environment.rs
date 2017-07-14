@@ -7,7 +7,7 @@ use ast;
 #[derive(Debug, PartialEq, Clone)]
 pub struct Environment {
     outer: Option<Rc<RefCell<Environment>>>,
-    env: HashMap<String, Rc<Object>>,
+    env: HashMap<String, Object>,
     block: Option<Rc<Object>>,
 }
 

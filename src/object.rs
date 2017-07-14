@@ -10,17 +10,21 @@ pub enum Object {
     Integer(i64),
     Boolean(bool),
     StringLiteral(String),
-    Return(Rc<Object>),
+    Return(Box<Object>),
     Function(Vec<ast::IdentifierExpression>, Box<ast::Statement>, Rc<RefCell<Environment>>),
     BlockArgument(Vec<ast::IdentifierExpression>, Box<ast::Statement>, Rc<RefCell<Environment>>),
     BuiltinFunction(token::Token),
-    ArrayLiteral(Vec<Rc<Object>>),
+    ArrayLiteral(Vec<Object>),
     Null,
 }
 
 
-pub type ObjectResult = Result<Rc<Object>, String>;
-pub type ObjectsResult = Result<Vec<Rc<Object>>, String>;
+pub enum ObjectResult<'a> {
+    Ref(Result<&'a Object, String>),
+    Value(Result<Object, String>),
+    MultiRef(Result<Vec<&'a Object>, String>),
+    MultiValue(Result<Vec<Object>, String>)
+}
 
 impl fmt::Display for Object {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

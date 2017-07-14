@@ -1,5 +1,5 @@
 use object;
-use object::{ObjectResult, Object};
+use object::{ObjectResult, ObjectRefResult, Object};
 use token;
 use environment;
 use runtime;
@@ -25,7 +25,7 @@ pub enum Builtin {
 impl Builtin {
     fn call(
         &self,
-        args: Vec<Rc<Object>>,
+        args: Vec<Object>,
         env: Rc<RefCell<environment::Environment>>,
         evaluator: &evaluator::Evaluator,
     ) -> ObjectResult {
@@ -118,15 +118,15 @@ impl fmt::Display for Builtin {
     }
 }
 
-fn len(arg: Rc<Object>) -> ObjectResult {
+fn len(arg: &Object) -> ObjectResult {
     match *arg {
-        Object::StringLiteral(ref s) => Ok(Rc::new(Object::Integer(s.len() as i64))),
-        Object::ArrayLiteral(ref array) => Ok(Rc::new(Object::Integer(array.len() as i64))),
+        Object::StringLiteral(ref s) => Ok(Object::Integer(s.len() as i64)),
+        Object::ArrayLiteral(ref array) => Ok(Object::Integer(array.len() as i64)),
         ref x => Err(format!("len: unsupported type {}", x)),
     }
 }
 
-fn print(arg: Rc<Object>, runtime: &runtime::Runtime) -> ObjectResult {
+fn print<'a>(arg: Rc<Object>, runtime: &'a runtime::Runtime) -> ObjectRefResult<'a> {
     println!("{}", arg);
     Ok(runtime.NULL())
 }
@@ -138,25 +138,25 @@ fn last(arg: Rc<Object>) -> ObjectResult {
     }
 }
 
-fn first(arg: Rc<Object>) -> ObjectResult {
+fn first(arg: Object) -> ObjectResult {
     match *arg {
         Object::ArrayLiteral(ref array) => Ok(array.get(0).unwrap().clone()),
         ref x => Err(format!("first: unsupported type {}", x)),
     }
 }
 
-fn push(array: Rc<Object>, value: Rc<Object>) -> ObjectResult {
+fn push(array: &Object, value: Object) -> ObjectResult {
     match *array {
         Object::ArrayLiteral(ref array) => {
             let mut new = array.clone();
             new.push(value);
-            Ok(Rc::new(Object::ArrayLiteral(new)))
+            Ok(Object::ArrayLiteral(new))
         }
         ref x => Err(format!("first: unsupported type {}", x)),
     }
 }
 
-fn eval(arg: Rc<Object>, env: Rc<RefCell<environment::Environment>>) -> ObjectResult {
+fn eval<'a>(arg: Object, env: Rc<RefCell<environment::Environment>>) -> ObjectResult<'a> {
 
     use parser;
     use evaluator;
@@ -169,25 +169,25 @@ fn eval(arg: Rc<Object>, env: Rc<RefCell<environment::Environment>>) -> ObjectRe
     }
 }
 
-fn stats(env: Rc<RefCell<environment::Environment>>, runtime: &runtime::Runtime) -> ObjectResult {
+fn stats<'a>(env: Rc<RefCell<environment::Environment>>, runtime: &'a runtime::Runtime) -> ObjectRefResult<'a> {
     runtime.stats();
     env.borrow().stats(0);
     Ok(runtime.NULL())
 }
 
-fn rest(arg: Rc<Object>) -> ObjectResult {
-    match *arg {
-        Object::ArrayLiteral(ref array) => {
+fn rest<'a>(arg: &Object) -> ObjectResult<'a> {
+    match arg {
+        &Object::ArrayLiteral(ref array) => {
             array
                 .split_first()
-                .map(|(_, tail)| Rc::new(Object::ArrayLiteral(tail.to_owned())))
+                .map(|(_, tail)| Object::ArrayLiteral(tail.to_owned()))
                 .ok_or("could not split vec".to_string())
         }
         ref x => Err(format!("first: unsupported type {}", x)),
     }
 }
 
-fn _yield(args: Vec<Rc<Object>>, env: Rc<RefCell<environment::Environment>>, evaluator: &evaluator::Evaluator) -> ObjectResult {
+fn _yield<'a>(args: Vec<Rc<Object>>, env: Rc<RefCell<environment::Environment>>, evaluator: &evaluator::Evaluator) -> ObjectResult<'a> {
     let block = env.borrow().block().ok_or(format!("yield called but no block given"))?;
     match *block {
         Object::BlockArgument(ref params, ref stmt, ref block_env) => {
