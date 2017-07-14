@@ -20,7 +20,6 @@ pub enum Object {
 
 pub type ObjectRcResult = Result<Rc<Object>, String>;
 pub type ObjectsResult = Result<Vec<Rc<Object>>, String>;
-pub type ObjectResult = Result<Object, String>;
 
 impl fmt::Display for Object {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

@@ -76,7 +76,7 @@ pub enum Expression {
     String(StringLiteral),
     Builtin(token::Token),
     Array(ArrayLiteral),
-    Index(IndexExpression)
+    Index(IndexExpression),
 }
 
 impl HasToken for Expression {

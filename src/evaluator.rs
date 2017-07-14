@@ -1,5 +1,5 @@
 use ast;
-use object::{Object, ObjectRcResult, ObjectResult, ObjectsResult};
+use object::{Object, ObjectRcResult,ObjectsResult};
 use environment::Environment;
 use std::rc::Rc;
 use std::cell::RefCell;
@@ -365,7 +365,8 @@ sum([1,2,3,4,5]);
                 Object::Integer(3)
             ),
             ("let i = 2; fn () { i + 1; }(); i;", Object::Integer(2)),
-            ("let i = 0; let k = 10; let f = fn(){ if (i < k) { i = i + 1; k = k - 1; f() } }; f(); i;", Object::Integer(5)),
+            ("let i = 0; let k = 10; let f = fn(){ if (i < k) { i = i + 1; k = k - 1;
+f() } }; f(); i;", Object::Integer(5)),
         ];
 
         for t in tests {

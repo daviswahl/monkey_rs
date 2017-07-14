@@ -33,6 +33,9 @@ pub fn run() {
         input.clear();
 
         print!("> ");
-        io::stdout().flush();
+        match io::stdout().flush() {
+            Ok(_) => (),
+            Err(e) => println!("error: {}", e),
+        }
     }
 }
