@@ -19,14 +19,23 @@ impl Environment {
 
     pub fn get(&self, ident: String) -> Option<Rc<Object>> {
         self.env.get(&ident).map(|e| e.clone()).or(
-            self.outer.as_ref().and_then(|e| {
-                e.borrow().get(ident)
-            }),
+            self.outer.as_ref().and_then(|e| e.borrow().get(ident)),
         )
     }
 
     pub fn set(&mut self, ident: String, obj: Rc<Object>) {
         self.env.insert(ident, obj);
+    }
+
+    pub fn update(&mut self, ident: String, obj: Rc<Object>) -> Result<(), String> {
+        if self.env.contains_key(&ident) {
+            self.env.insert(ident, obj);
+            return Ok(());
+        }
+        self.outer
+            .as_ref()
+            .ok_or(format!("unknown identifier: {}", ident))
+            .and_then(|outer| outer.borrow_mut().update(ident, obj))
     }
 
     pub fn extend(env: Rc<RefCell<Environment>>) -> Environment {
@@ -40,7 +49,7 @@ impl Environment {
         let mut indentation: String = String::from("");
         let mut i = 0;
         while i < indent {
-           indentation.push(' ');
+            indentation.push(' ');
             i += 1;
         }
 
@@ -48,7 +57,9 @@ impl Environment {
             println!("{}{}: {}", indentation, key, Rc::strong_count(value))
         }
 
-        self.outer.as_ref().map(|outer| outer.borrow().stats(indent + 2));
+        self.outer.as_ref().map(
+            |outer| outer.borrow().stats(indent + 2),
+        );
     }
 }
 

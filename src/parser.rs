@@ -33,7 +33,7 @@ enum Precedence {
 impl Precedence {
     pub fn from_token(t: &Token) -> Precedence {
         match t {
-            &Token::EQ | &Token::NOT_EQ => Precedence::EQUALS,
+            &Token::ASSIGN | &Token::EQ | &Token::NOT_EQ => Precedence::EQUALS,
             &Token::LT | &Token::GT => Precedence::LESSGREATER,
             &Token::PLUS | &Token::MINUS | &Token::CONCAT => Precedence::SUM,
             &Token::SLASH | &Token::ASTERISK => Precedence::PRODUCT,
@@ -123,7 +123,7 @@ impl<'a> Parser<'a> {
 
         while !self.peek_token_is(&SEMICOLON) && p < self.peek_precedence() {
             left = left.and_then(|exp| match self.peek_token {
-                PLUS | MINUS | SLASH | ASTERISK | EQ | NOT_EQ | LT | GT | CONCAT => {
+                ASSIGN | PLUS | MINUS | SLASH | ASTERISK | EQ | NOT_EQ | LT | GT | CONCAT => {
                     self.next_token();
                     self.parse_infix_expression(exp)
                 }
@@ -503,6 +503,24 @@ impl<'a> Parser<'a> {
 mod tests {
     use super::*;
     use token::Token::*;
+
+    #[test]
+    fn test_update_expression() {
+        let p = make_parser("i = i + 1");
+        let prog = assert_no_errors(p.parse());
+        assert_program(&prog, |program| {
+            assert_statement_expression(&program.statements[0], |stmt| {
+                assert_infix(&stmt, |infix1| {
+                    assert_ident(&*infix1.left, "i");
+                    assert_infix(&*infix1.right, |infix2| {
+                        assert_ident(&*infix2.left, "i");
+                        assert_integer(&*infix2.right, 1);
+                        assert_eq!(infix2.operator.as_str(), "+");
+                    })
+                })
+            })
+        })
+    }
 
     #[test]
     fn test_parse_index_expressions() {
@@ -1054,7 +1072,7 @@ foobar;
     {
         match exp {
             &ast::Expression::Infix(ref infix) => f(infix),
-            _ => assert!(false, "Expected infix expression"),
+            x => assert!(false, "Expected infix expression, got {:?}", x),
         }
     }
 

@@ -11,7 +11,11 @@ pub fn run() {
     let env = Environment::new();
 
     print!("> ");
-    io::stdout().flush();
+    match io::stdout().flush() {
+        Ok(_) => (),
+        Err(_) => return
+
+    }
 
     while let Ok(_) = io::stdin().read_line(&mut input) {
         match parser::parse(input.as_str()) {
