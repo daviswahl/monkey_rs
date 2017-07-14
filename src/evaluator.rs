@@ -1,5 +1,6 @@
 use ast;
 use object::{Object, ObjectResult,ObjectsResult};
+use environment;
 use environment::Environment;
 use std::rc::Rc;
 use std::cell::RefCell;
@@ -7,8 +8,8 @@ use runtime;
 
 use builtin;
 
-struct Evaluator {
-    runtime: runtime::Runtime,
+pub struct Evaluator {
+    pub runtime: runtime::Runtime,
 }
 
 type Env = Rc<RefCell<Environment>>;
@@ -20,27 +21,7 @@ fn is_truthy(obj: &Object) -> bool {
 }
 
 
-fn extend_function_env(
-    parameters: &Vec<ast::IdentifierExpression>,
-    env: Env,
-    args: Vec<Rc<Object>>,
-) -> Result<Environment, String> {
-    let mut extended = Environment::extend(env);
 
-    if parameters.len() != args.len() {
-        return Err(format!(
-            "function expected {} arguments, got {}",
-            parameters.len(),
-            args.len()
-        ));
-    }
-
-    for (i, param) in parameters.into_iter().enumerate() {
-        extended.set(param.value.clone(), args[i].clone())
-    }
-
-    Ok(extended)
-}
 
 impl Evaluator {
     fn visit_expr(&self, expr: ast::Expression, env: Env) -> ObjectResult {
@@ -49,7 +30,7 @@ impl Evaluator {
         match expr {
             Integer(ref int) => Ok(Rc::new(Object::Integer(int.value))),
             Boolean(b) => Ok(self.runtime.bool(b.value)),
-            String(ref s) => Ok(Rc::new(Object::StringLiteral(s.token_literal()))),
+            String(ref s) => Ok(Rc::new(Object::StringLiteral(s.token.literal()))),
 
             Prefix(prefix) => {
                 let op = prefix.operator;
@@ -190,19 +171,20 @@ impl Evaluator {
     }
 
     fn visit_array_expression(&self, exp: ast::ArrayLiteral, env: Env) -> ObjectResult {
-
         self.visit_expressions(exp.elements, env).map(|elements| {
             Rc::new(Object::ArrayLiteral(elements))
         })
     }
 
-    fn apply_function(&self, func: Rc<Object>, env: Env, args: Vec<Rc<Object>>) -> ObjectResult {
+    fn apply_function(&self, func: Rc<Object>, args: Vec<Rc<Object>>, block: Option<Rc<Object>>, env: Env) -> ObjectResult {
         match *func {
             Object::Function(ref parameters, ref body, ref func_env) => {
-                let env = extend_function_env(parameters, func_env.clone(), args)?;
+                let env = environment::extend_function_env(parameters, func_env.clone(), args, block)?;
                 self.visit_statement(*body.clone(), Rc::new(RefCell::new(env)))
             }
-            Object::BuiltinFunction(ref tok) => builtin::call(tok, env, &self.runtime, args),
+            Object::BuiltinFunction(ref tok) => {
+                builtin::call(tok, env, self, args)
+            },
             ref x => Err(format!("expected function object, got {}", x)),
         }
     }
@@ -218,8 +200,8 @@ impl Evaluator {
     fn visit_call_expression(&self, expr: ast::CallExpression, env: Env) -> ObjectResult {
         let function = self.visit_expr(*expr.function, env.clone())?;
         let args = self.visit_expressions(expr.arguments, env.clone())?;
-        let block = expr.block.map(|block| self.visit_statement(*block, env.clone()).ok());
-        self.apply_function(function, env, args)
+        let block = expr.block.and_then(|block| self.visit_statement(*block, env.clone()).ok());
+        self.apply_function(function, args, block, env)
     }
 
     fn visit_function_expression(&self, expr: ast::FunctionLiteral, env: Env) -> ObjectResult {
@@ -296,9 +278,22 @@ impl Evaluator {
 
     fn visit_block_statement(&self, block: ast::BlockStatement, env: Env) -> ObjectResult {
         self.visit_statements(block.statements, env)
+
     }
 
-    fn visit_statement(&self, stmt: ast::Statement, env: Env) -> ObjectResult {
+    fn visit_block_argument(&self, block: ast::BlockArgument, env: Env) -> ObjectResult {
+        let mut identifiers: Vec<ast::IdentifierExpression> = vec![];
+        for param in block.parameters.into_iter() {
+            match param {
+                ast::Expression::Identifier(exp) => identifiers.push(exp),
+                x => return Err(format!("Expected identifier, got {}", x)),
+            }
+        }
+
+        Ok(Rc::new(Object::BlockArgument(identifiers, block.block, env)))
+    }
+
+    pub fn visit_statement(&self, stmt: ast::Statement, env: Env) -> ObjectResult {
         use ast::Statement::*;
         match stmt {
 
@@ -313,7 +308,10 @@ impl Evaluator {
 
             Let(stmt) => self.visit_let_statement(stmt, env),
 
-            BlockArgument(block) => unimplemented!(),
+            BlockArgument(block) => {
+                self.visit_block_argument(block, env)
+            }
+
         }
     }
 }
@@ -360,11 +358,11 @@ sum([1,2,3,4,5]);
     }
     #[test]
     fn test_block_arguments() {
-        let input= ("let f = fn() {}; f() { |a| print(\"in block\"); };");
+        let input= ("let f = fn(a) { yield(a) }; f(\"in block\") { |a| a; };");
         let env = Environment::new();
-        assert_eval(input, env);
-        assert!(false)
+        assert_object(assert_eval(input, env).as_ref(), &Object::StringLiteral("in block".to_string()));
     }
+
     #[test]
     fn test_update_assignment() {
         let tests = vec![

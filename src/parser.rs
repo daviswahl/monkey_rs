@@ -199,12 +199,18 @@ impl<'a> Parser<'a> {
         let token = self.next_token();
 
         let parameters = self.parse_call_parameters();
-        self.parse_statement().map(|block| {
-            ast::Statement::BlockArgument(ast::BlockArgument {
-                token: token,
-                parameters: parameters,
-                block: Box::new(block),
-            })
+        self.parse_statement().and_then(|block| {
+            match block {
+                ast::Node::Statement(stmt) => {
+                    Some(ast::Statement::BlockArgument(ast::BlockArgument {
+                        token: token,
+                        parameters: parameters,
+                        block: Box::new(stmt),
+                    }))
+                }
+                _ => None,
+            }
+
         })
     }
 

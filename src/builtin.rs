@@ -3,6 +3,7 @@ use object::{ObjectResult, Object};
 use token;
 use environment;
 use runtime;
+use evaluator;
 use std::fmt;
 use std::rc::Rc;
 use std::cell::RefCell;
@@ -18,6 +19,7 @@ pub enum Builtin {
     Eval,
     Stats,
     While,
+    Yield,
 }
 
 impl Builtin {
@@ -25,23 +27,24 @@ impl Builtin {
         &self,
         args: Vec<Rc<Object>>,
         env: Rc<RefCell<environment::Environment>>,
-        runtime: &runtime::Runtime,
+        evaluator: &evaluator::Evaluator,
     ) -> ObjectResult {
         match self {
             &Builtin::Len => check_arity_1(args).and_then(|arg1| len(arg1)),
-            &Builtin::Print => check_arity_1(args).and_then(|arg1| print(arg1, runtime)),
+            &Builtin::Print => check_arity_1(args).and_then(|arg1| print(arg1, &evaluator.runtime)),
             &Builtin::First => check_arity_1(args).and_then(|arg1| first(arg1)),
             &Builtin::Last => check_arity_1(args).and_then(|arg1| last(arg1)),
             &Builtin::Rest => check_arity_1(args).and_then(|arg1| rest(arg1)),
             &Builtin::Eval => check_arity_1(args).and_then(|arg1| eval(arg1, env)),
             &Builtin::Push => check_arity_2(args).and_then(|(arg1, arg2)| push(arg1, arg2)),
-            &Builtin::Stats => check_arity_0(args).and_then(|_| stats(env, runtime)),
-            &Builtin::While => check_arity_0(args).and_then(|_| stats(env, runtime)),
+            &Builtin::Stats => check_arity_0(args).and_then(|_| stats(env, &evaluator.runtime)),
+            &Builtin::While => check_arity_0(args).and_then(|_| stats(env, &evaluator.runtime)),
+            &Builtin::Yield => _yield(args, env, evaluator),
         }
     }
 }
 
-pub static BUILTINS: [(&'static str, Builtin); 9] = [
+pub static BUILTINS: [(&'static str, Builtin); 10] = [
     ("len", Builtin::Len),
     ("print", Builtin::Print),
     ("first", Builtin::First),
@@ -51,6 +54,7 @@ pub static BUILTINS: [(&'static str, Builtin); 9] = [
     ("eval", Builtin::Eval),
     ("stats", Builtin::Stats),
     ("while", Builtin::While),
+    ("yield", Builtin::Yield),
 ];
 
 fn check_arity_0(args: Vec<Rc<object::Object>>) -> Result<(), String> {
@@ -102,10 +106,10 @@ pub fn is_builtin(s: &str) -> bool {
 pub fn call(
     tok: &token::Token,
     env: Rc<RefCell<environment::Environment>>,
-    runtime: &runtime::Runtime,
+    evaluator: &evaluator::Evaluator,
     args: Vec<Rc<object::Object>>,
 ) -> ObjectResult {
-    from_token(tok).and_then(|builtin| builtin.call(args, env, runtime))
+    from_token(tok).and_then(|builtin| builtin.call(args, env, evaluator))
 }
 
 impl fmt::Display for Builtin {
@@ -181,4 +185,16 @@ fn rest(arg: Rc<Object>) -> ObjectResult {
         }
         ref x => Err(format!("first: unsupported type {}", x)),
     }
+}
+
+fn _yield(args: Vec<Rc<Object>>, env: Rc<RefCell<environment::Environment>>, evaluator: &evaluator::Evaluator) -> ObjectResult {
+    let block = env.borrow().block().ok_or(format!("yield called but no block given"))?;
+    match *block {
+        Object::BlockArgument(ref params, ref stmt, ref block_env) => {
+           let extended_env = environment::extend_function_env(&params, block_env.clone(), args, None)?;
+           evaluator.visit_statement(*stmt.clone(), Rc::new(RefCell::new(extended_env)))
+        }
+        ref x => Err(format!("Expected block argument, got: {}", x))
+    }
+
 }

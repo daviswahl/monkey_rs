@@ -413,7 +413,7 @@ impl fmt::Display for BlockStatement {
 pub struct BlockArgument {
     pub token: token::Token,
     pub parameters: Vec<Expression>,
-    pub block: Box<Node>,
+    pub block: Box<Statement>,
 }
 
 impl HasToken for BlockArgument {
