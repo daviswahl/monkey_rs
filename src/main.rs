@@ -15,7 +15,6 @@ fn main() {
 }
 
 fn eval_file(s: String) {
-    println!("{}", s.as_str());
     let p = path::PathBuf::from(s);
     let f = fs::File::open(p);
     let mut buf: String = String::new();
