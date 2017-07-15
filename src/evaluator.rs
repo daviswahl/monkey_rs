@@ -135,7 +135,7 @@ impl<'a> Evaluator {
                     x => return Err(format!("unknown operator: {} {} {}", left, x, right)),
                 }
             }
-            (l, r) => return Err(format!("type mismatch: {} {} {}", l, op, r)),
+            (l, r) => return Err(format!("type mismatch: {:?} {} {:?}", l, op, r)),
         };
         Ok(result)
     }

@@ -1,8 +1,12 @@
-let max = 10;
-let func = fn(iter) { if (iter < max) { func(iter + 1) } else { yield(); }; };
-
-func(1) { || stats(); };
-
-print("last stats");
-
-stats();
+    let fibonacci = fn(x) {
+        if (x == 0) {
+            0
+        } else {
+            if (x == 1) {
+                1
+            } else {
+                fibonacci(x - 1) + fibonacci(x - 2);
+            }
+        }
+    };
+    fibonacci(20);

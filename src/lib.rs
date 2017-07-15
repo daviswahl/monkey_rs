@@ -13,11 +13,17 @@ mod ast;
 mod builtin;
 mod runtime;
 mod object;
-
+mod interpreter;
 use object::Object;
 
 use std::rc::Rc;
 use std::cell::RefCell;
+
+
+pub fn run(s: &str) -> Result<Object, String> {
+    let env = environment::Environment::new();
+    eval(s, env)
+}
 
 pub fn eval(s: &str, env: Rc<RefCell<environment::Environment>>) -> Result<Object, String> {
     let evaluator = evaluator::Evaluator { runtime: runtime::new() };
