@@ -7,13 +7,13 @@ pub mod environment;
 mod evaluator;
 mod parser;
 
+mod lazy;
 mod token;
 mod lexer;
 mod ast;
 mod builtin;
 mod runtime;
 mod object;
-mod interpreter;
 use object::Object;
 
 use std::rc::Rc;
@@ -30,7 +30,7 @@ pub fn eval(s: &str, env: Rc<RefCell<environment::Environment>>) -> Result<Objec
 
     match parse(s) {
         Ok(p) => {
-            evaluator::eval(p, env.clone(), &evaluator).map(|o| o.unwrap_value(file!(), line!()))
+            evaluator::eval(p, env.clone(), &evaluator).map(|o| o.unwrap_value())
         }
         Err(errs) => Err(format!("{:?}", errs)),
     }

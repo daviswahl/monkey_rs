@@ -1,5 +1,6 @@
 use object;
-use object::{ObjectResult, Object};
+use object::{Object};
+use lazy;
 use token;
 use environment;
 use runtime;

@@ -1,6 +1,5 @@
 use token;
 use std::fmt;
-pub mod walk;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Node {

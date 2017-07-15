@@ -36,7 +36,7 @@ pub fn extend_function_env(
 
 pub fn extend(env: Rc<RefCell<Environment>>, block: Option<Object>) -> Environment {
         Environment {
-            block: block),
+            block: block,
             outer: Some(env),
             env: HashMap::new(),
         }

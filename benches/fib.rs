@@ -36,7 +36,7 @@ fn test_fib() -> String {
     use monkey_parser;
     match monkey_parser::run(input) {
         Ok(f) => f.to_string(),
-        Err(e) => e.to_string()
+        Err(e) => e.to_string(),
     }
 }
 
@@ -51,12 +51,12 @@ mod tests {
 
     #[bench]
     fn bench_fib(b: &mut Bencher) {
-       b.iter(|| test_fib())
+        b.iter(|| test_fib())
     }
 
     #[bench]
     fn bench_fib_native(b: &mut Bencher) {
-        b.iter( || {
+        b.iter(|| {
             let n = test::black_box(1000);
             test_fib_native()
         })

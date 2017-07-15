@@ -1,10 +1,12 @@
 use ast;
-use object::{Object, ObjectResult};
+use object::{Object};
 use environment;
 use environment::Environment;
 use std::rc::Rc;
 use std::cell::RefCell;
 use runtime;
+use lazy;
+use lazy::Lazy;
 
 use builtin;
 
@@ -13,8 +15,8 @@ pub struct Evaluator {
 }
 
 type Env = Rc<RefCell<Environment>>;
-pub type EvalResult<'a> = Result<ObjectResult<'a>, String>;
-pub type EvalResults<'a> = Result<Vec<ObjectResult<'a>>, String>;
+pub type EvalResult<'a> = Result<Lazy<'a, Object>, String>;
+pub type EvalResults<'a> = Result<Vec<Lazy<'a, Object>>, String>;
 
 fn is_truthy(obj: &Object) -> bool {
     match obj {
@@ -35,7 +37,7 @@ impl<'a> Evaluator {
             Prefix(prefix) => {
                 let op = prefix.operator;
                 self.visit_expr(*prefix.right, env).and_then(|right| {
-                    self.visit_prefix_expression(op.as_str(), &right.value_or_clone())
+                    self.visit_prefix_expression(op.as_str(), &right.clone())
                 })
             }
 
@@ -45,14 +47,14 @@ impl<'a> Evaluator {
                 let right = self.visit_expr(*infix.right, env.clone())?;
 
                 if op == "=" {
-                    self.visit_update_assignment(*left, right.unwrap_value(file!(), line!()), env)
+                    self.visit_update_assignment(*left, right.unwrap_value(), env)
                 } else {
 
                     self.visit_expr(*left, env).and_then(|left| {
                         self.eval_infix_expression(
                             op.as_str(),
-                            &left.value_or_clone(),
-                            &right.value_or_clone(),
+                            &left.clone(),
+                            &right.clone(),
                         )
                     })
                 }
@@ -152,12 +154,10 @@ impl<'a> Evaluator {
         let l = exp.left;
         let i = exp.index;
         self.visit_expr(*l, env.clone()).and_then(move |left| {
-            match left.unwrap_value(file!(), line!()) {
+            match left.unwrap_value() {
                 Object::ArrayLiteral(ref array) => {
                     self.visit_expr(*i, env).and_then(
                         |index| match index.unwrap_value(
-                            file!(),
-                            line!(),
                         ) {
                             Object::Integer(i) => {
                                 if i <= array.len() as i64 {
@@ -181,7 +181,7 @@ impl<'a> Evaluator {
 
     fn visit_array_expression(&'a self, exp: ast::ArrayLiteral, env: Env) -> EvalResult<'a> {
         self.visit_expressions(exp.elements, env).map(|elements| {
-            Object::ArrayLiteral(elements.into_iter().map(|e| e.value_or_clone()).collect()).into()
+            Object::ArrayLiteral(elements.into_iter().map(|e| e.clone()).collect()).into()
         })
     }
 
@@ -204,7 +204,7 @@ impl<'a> Evaluator {
     }
 
     fn visit_expressions(&'a self, exprs: Vec<ast::Expression>, env: Env) -> EvalResults<'a> {
-        let mut results: Vec<ObjectResult> = vec![];
+        let mut results: Vec<Lazy<Object>> = vec![];
         for expr in exprs.into_iter() {
             results.push(self.visit_expr(expr, env.clone())?);
         }
@@ -216,12 +216,12 @@ impl<'a> Evaluator {
         let args = self.visit_expressions(expr.arguments, env.clone())?;
         let block = expr.block
             .and_then(|block| self.visit_statement(*block, env.clone()).ok())
-            .map(|o| o.value_or_clone())
+            .map(|o| o.clone())
             .or(env.borrow().block().clone());
 
         self.apply_function(
-            function.value_or_clone(),
-            args.into_iter().map(|e| e.value_or_clone()).collect(),
+            function.clone(),
+            args.into_iter().map(|e| e.clone()).collect(),
             block,
             env,
         )
@@ -250,7 +250,7 @@ impl<'a> Evaluator {
 
     fn visit_cond_expression(&'a self, ifexp: ast::IfExpression, env: Env) -> EvalResult<'a> {
         let cond = self.visit_expr(*ifexp.condition, env.clone())?;
-        if is_truthy(cond.unwrap_ref(file!(), line!())) {
+        if is_truthy(cond.unwrap_ref()) {
             self.visit_statement(*ifexp.consequence, env)
         } else if let Some(alt) = ifexp.alternative {
             self.visit_statement(*alt, env)
@@ -270,15 +270,15 @@ impl<'a> Evaluator {
     fn visit_program(&'a self, n: ast::Program, env: Env) -> EvalResult<'a> {
         let result = self.visit_statements(n.statements, env)?;
         match result {
-            ObjectResult::Ref(r) => {
+            Lazy::Ref(r) => {
                 match r {
-                    &Object::Return(ref ret) => Ok(ObjectResult::from(*ret.clone())),
+                    &Object::Return(ref ret) => Ok(Lazy::from(*ret.clone())),
                     r => Ok(r.into()),
                 }
             }
-            ObjectResult::Value(r) => {
+            Lazy::Val(r) => {
                 match r {
-                    Object::Return(ret) => Ok(ObjectResult::from(*ret)),
+                    Object::Return(ret) => Ok(Lazy::from(*ret)),
                     r => Ok(r.into()),
                 }
             }
@@ -287,13 +287,13 @@ impl<'a> Evaluator {
     }
 
     fn visit_statements(&'a self, stmts: Vec<ast::Node>, env: Env) -> EvalResult<'a> {
-        let mut result = ObjectResult::Ref(self.runtime.NULL());
+        let mut result = Lazy::Ref(self.runtime.NULL());
         for stmt in stmts.into_iter() {
             if let ast::Node::Statement(s) = stmt {
                 let value = self.visit_statement(s, env.clone())?;
-                match value.value_or_clone() {
+                match value.clone() {
                     r @ Object::Return(_) => {
-                        return Ok(ObjectResult::from(r))
+                        return Ok(Lazy::from(r))
                     }
                     v => result = v.into()
                 }
@@ -307,10 +307,7 @@ impl<'a> Evaluator {
         let value = self.visit_expr(*stmt.value, env.clone())?;
         env.as_ref().borrow_mut().set(
             ident,
-            value.unwrap_value(
-                file!(),
-                line!(),
-            ),
+            value.unwrap_value(),
         );
         Ok(self.runtime.NULL().into())
     }
@@ -343,7 +340,7 @@ impl<'a> Evaluator {
             Return(ret) => {
                 let result = self.visit_expr(*ret.value, env)?;
                 Ok(
-                    Object::Return(Box::new(result.unwrap_value(file!(), line!()))).into(),
+                    Object::Return(Box::new(result.unwrap_value())).into(),
                 )
             }
 
@@ -763,8 +760,8 @@ addTwo(2);";
         match eval(node, env, &evaluator) {
             Ok(e) => {
                 match e {
-                    ObjectResult::Value(e) => e,
-                    ObjectResult::Ref(r) => r.clone(),
+                    Lazy::Val(e) => e,
+                    Lazy::Ref(r) => r.clone(),
                 }
             }
             Err(e) => {

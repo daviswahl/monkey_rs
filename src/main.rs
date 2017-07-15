@@ -24,7 +24,7 @@ fn eval_file(s: String) {
             file.read_to_string(&mut buf).map(|_| {
                 match monkey_parser::eval(buf.as_str(), environment) {
                     Ok(r) => println!("{}", r),
-                    Err(e) => println!("Error: {}", e)
+                    Err(e) => println!("Error: {}", e),
                 }
             });
         }

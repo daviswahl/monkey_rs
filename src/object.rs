@@ -4,6 +4,8 @@ use std::cell::RefCell;
 use environment::Environment;
 use token;
 use ast;
+use lazy;
+use lazy::Lazy;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Object {
@@ -18,45 +20,15 @@ pub enum Object {
     Null,
 }
 
-#[derive(Debug, Clone)]
-pub enum ObjectResult<'a> {
-    Ref(&'a Object),
-    Value(Object),
-}
-
-impl <'a>ObjectResult<'a> {
-    pub fn unwrap_ref(self, s: &str, l: u32) -> &'a Object {
-        match self {
-            ObjectResult::Ref(r) => r,
-            o => panic!("not a ref: file: {}, line: {}", s, l)
-        }
-    }
-
-    pub fn unwrap_value(self, s: &str, l: u32) -> Object {
-        match self {
-            ObjectResult::Value(object) => object,
-            o => panic!("not an object: file: {}, line: {}", s, l)
-        }
-    }
-
-    pub fn value_or_clone(self) -> Object {
-        match self {
-            ObjectResult::Value(object) => object,
-            ObjectResult::Ref(r) => r.clone(),
-            _ => panic!("not a single value")
-        }
-    }
-}
-
-impl <'a>From<Object> for ObjectResult<'a> {
+impl <'a>From<Object> for Lazy<'a, Object> {
     fn from(obj: Object) -> Self {
-        ObjectResult::Value(obj)
+        Lazy::Val(obj)
     }
 }
 
-impl <'a>From<&'a Object> for ObjectResult<'a> {
+impl <'a>From<&'a Object> for Lazy<'a, Object> {
     fn from(obj: &'a Object) -> Self {
-        ObjectResult::Ref(obj)
+        Lazy::Ref(obj)
     }
 }
 
