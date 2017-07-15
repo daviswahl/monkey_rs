@@ -22,8 +22,6 @@ pub enum Object {
 pub enum ObjectResult<'a> {
     Ref(&'a Object),
     Value(Object),
-    MultiRef(Vec<&'a Object>),
-    MultiValue(Vec<Object>)
 }
 
 impl <'a>ObjectResult<'a> {
@@ -40,13 +38,12 @@ impl <'a>ObjectResult<'a> {
             o => panic!("not an object: file: {}, line: {}", s, l)
         }
     }
-}
 
-impl <'a>From<ObjectResult<'a>> for Vec<Object> {
-    fn from(result: ObjectResult) -> Self {
-        match result {
-           ObjectResult::MultiValue(v) => v,
-            x => panic!("could not unwrap {:?} into Vec<Object>", x)
+    pub fn value_or_clone(self) -> Object {
+        match self {
+            ObjectResult::Value(object) => object,
+            ObjectResult::Ref(r) => r.clone(),
+            _ => panic!("not a single value")
         }
     }
 }
@@ -60,12 +57,6 @@ impl <'a>From<Object> for ObjectResult<'a> {
 impl <'a>From<&'a Object> for ObjectResult<'a> {
     fn from(obj: &'a Object) -> Self {
         ObjectResult::Ref(obj)
-    }
-}
-
-impl <'a>From<Vec<Object>> for ObjectResult<'a> {
-    fn from(obj: Vec<Object>) -> Self {
-        ObjectResult::MultiValue(obj)
     }
 }
 

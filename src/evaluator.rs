@@ -14,6 +14,7 @@ pub struct Evaluator {
 
 type Env = Rc<RefCell<Environment>>;
 pub type EvalResult<'a> = Result<ObjectResult<'a>, String>;
+pub type EvalResults<'a> = Result<Vec<ObjectResult<'a>>, String>;
 
 fn is_truthy(obj: &Object) -> bool {
     match obj {
@@ -34,7 +35,7 @@ impl<'a> Evaluator {
             Prefix(prefix) => {
                 let op = prefix.operator;
                 self.visit_expr(*prefix.right, env).and_then(|right| {
-                    self.visit_prefix_expression(op.as_str(), &right.unwrap_value(file!(), line!()))
+                    self.visit_prefix_expression(op.as_str(), &right.value_or_clone())
                 })
             }
 
@@ -48,7 +49,11 @@ impl<'a> Evaluator {
                 } else {
 
                     self.visit_expr(*left, env).and_then(|left| {
-                        self.eval_infix_expression(op.as_str(), left.unwrap_ref(file!(), line!()), right.unwrap_ref(file!(), line!()))
+                        self.eval_infix_expression(
+                            op.as_str(),
+                            &left.value_or_clone(),
+                            &right.value_or_clone(),
+                        )
                     })
                 }
             }
@@ -149,8 +154,11 @@ impl<'a> Evaluator {
         self.visit_expr(*l, env.clone()).and_then(move |left| {
             match left.unwrap_value(file!(), line!()) {
                 Object::ArrayLiteral(ref array) => {
-                    self.visit_expr(*i, env).and_then(|index| {
-                        match index.unwrap_value(file!(), line!()) {
+                    self.visit_expr(*i, env).and_then(
+                        |index| match index.unwrap_value(
+                            file!(),
+                            line!(),
+                        ) {
                             Object::Integer(i) => {
                                 if i <= array.len() as i64 {
                                     Ok(array[i as usize].clone().into())
@@ -162,18 +170,18 @@ impl<'a> Evaluator {
                                     ))
                                 }
                             }
-                            v => Err(format!("cannot index out of array with type: {:?}", v))
-                        }
-                    })
-                },
-                v => return Err(format!("Expected array literal, got: {:?}", v))
+                            v => Err(format!("cannot index out of array with type: {:?}", v)),
+                        },
+                    )
+                }
+                v => return Err(format!("Expected array literal, got: {:?}", v)),
             }
         })
     }
 
     fn visit_array_expression(&'a self, exp: ast::ArrayLiteral, env: Env) -> EvalResult<'a> {
         self.visit_expressions(exp.elements, env).map(|elements| {
-            Object::ArrayLiteral(elements.into()).into()
+            Object::ArrayLiteral(elements.into_iter().map(|e| e.value_or_clone()).collect()).into()
         })
     }
 
@@ -195,10 +203,10 @@ impl<'a> Evaluator {
         }
     }
 
-    fn visit_expressions(&'a self, exprs: Vec<ast::Expression>, env: Env) -> EvalResult<'a> {
-        let mut results: Vec<Object> = vec![];
+    fn visit_expressions(&'a self, exprs: Vec<ast::Expression>, env: Env) -> EvalResults<'a> {
+        let mut results: Vec<ObjectResult> = vec![];
         for expr in exprs.into_iter() {
-            results.push(self.visit_expr(expr, env.clone())?.unwrap_value(file!(), line!()));
+            results.push(self.visit_expr(expr, env.clone())?);
         }
         Ok(results.into())
     }
@@ -207,9 +215,16 @@ impl<'a> Evaluator {
         let function = self.visit_expr(*expr.function, env.clone())?;
         let args = self.visit_expressions(expr.arguments, env.clone())?;
         let block = expr.block
-            .and_then(|block| self.visit_statement(*block, env.clone()).ok()).map(|o| o.unwrap_value(file!(), line!()));
-            //.or(env.borrow().block());
-        self.apply_function(function.unwrap_value(file!(), line!()), args.into(), block, env)
+            .and_then(|block| self.visit_statement(*block, env.clone()).ok())
+            .map(|o| o.value_or_clone())
+            .or(env.borrow().block().clone());
+
+        self.apply_function(
+            function.value_or_clone(),
+            args.into_iter().map(|e| e.value_or_clone()).collect(),
+            block,
+            env,
+        )
     }
 
     fn visit_function_expression(&'a self, expr: ast::FunctionLiteral, env: Env) -> EvalResult<'a> {
@@ -254,33 +269,49 @@ impl<'a> Evaluator {
 
     fn visit_program(&'a self, n: ast::Program, env: Env) -> EvalResult<'a> {
         let result = self.visit_statements(n.statements, env)?;
-        match result.unwrap_value(file!(), line!()) {
-            Object::Return(ret) => {
-                let unboxed = *ret;
-                Ok(unboxed.into())
+        match result {
+            ObjectResult::Ref(r) => {
+                match r {
+                    &Object::Return(ref ret) => Ok(ObjectResult::from(*ret.clone())),
+                    r => Ok(r.into()),
+                }
             }
-            r => Ok(r.into())
+            ObjectResult::Value(r) => {
+                match r {
+                    Object::Return(ret) => Ok(ObjectResult::from(*ret)),
+                    r => Ok(r.into()),
+                }
+            }
+            _ => unimplemented!(),
         }
     }
 
     fn visit_statements(&'a self, stmts: Vec<ast::Node>, env: Env) -> EvalResult<'a> {
-        let mut result = self.runtime.NULL();
+        let mut result = ObjectResult::Ref(self.runtime.NULL());
         for stmt in stmts.into_iter() {
             if let ast::Node::Statement(s) = stmt {
-                result = self.visit_statement(s, env.clone())?.unwrap_ref(file!(), line!());
-                if let Object::Return(_) = *result {
-                    return Ok(result.into());
+                let value = self.visit_statement(s, env.clone())?;
+                match value.value_or_clone() {
+                    r @ Object::Return(_) => {
+                        return Ok(ObjectResult::from(r))
+                    }
+                    v => result = v.into()
                 }
             }
         }
-
         Ok(result.into())
     }
 
     fn visit_let_statement(&'a self, stmt: ast::LetStatement, env: Env) -> EvalResult<'a> {
         let ident = stmt.name.value.to_owned();
         let value = self.visit_expr(*stmt.value, env.clone())?;
-        env.as_ref().borrow_mut().set(ident, value.unwrap_value(file!(), line!()));
+        env.as_ref().borrow_mut().set(
+            ident,
+            value.unwrap_value(
+                file!(),
+                line!(),
+            ),
+        );
         Ok(self.runtime.NULL().into())
     }
 
@@ -311,7 +342,9 @@ impl<'a> Evaluator {
 
             Return(ret) => {
                 let result = self.visit_expr(*ret.value, env)?;
-                Ok(Object::Return(Box::new(result.unwrap_value(file!(), line!()))).into())
+                Ok(
+                    Object::Return(Box::new(result.unwrap_value(file!(), line!()))).into(),
+                )
             }
 
             Let(stmt) => self.visit_let_statement(stmt, env),
@@ -728,7 +761,12 @@ addTwo(2);";
         use evaluator;
         let evaluator = evaluator::Evaluator { runtime: runtime::new() };
         match eval(node, env, &evaluator) {
-            Ok(e) => e.unwrap_value(file!(), line!()),
+            Ok(e) => {
+                match e {
+                    ObjectResult::Value(e) => e,
+                    ObjectResult::Ref(r) => r.clone(),
+                }
+            }
             Err(e) => {
                 assert!(false, format!("Expected program, got {:?}", e));
                 Object::Null

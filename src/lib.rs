@@ -23,7 +23,9 @@ pub fn eval(s: &str, env: Rc<RefCell<environment::Environment>>) -> Result<Objec
     let evaluator = evaluator::Evaluator { runtime: runtime::new() };
 
     match parse(s) {
-        Ok(p) => evaluator::eval(p, env.clone(), &evaluator).map(|o| o.unwrap_value(file!(), line!())),
+        Ok(p) => {
+            evaluator::eval(p, env.clone(), &evaluator).map(|o| o.unwrap_value(file!(), line!()))
+        }
         Err(errs) => Err(format!("{:?}", errs)),
     }
 }
