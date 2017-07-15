@@ -37,7 +37,7 @@ impl<'a> Evaluator {
             Prefix(prefix) => {
                 let op = prefix.operator;
                 self.visit_expr(*prefix.right, env).and_then(|right| {
-                    self.visit_prefix_expression(op.as_str(), &right.clone())
+                    self.visit_prefix_expression(op.as_str(), right)
                 })
             }
 
@@ -47,7 +47,7 @@ impl<'a> Evaluator {
                 let right = self.visit_expr(*infix.right, env.clone())?;
 
                 if op == "=" {
-                    self.visit_update_assignment(*left, right.unwrap_value(), env)
+                    self.visit_update_assignment(*left, right, env)
                 } else {
 
                     self.visit_expr(*left, env).and_then(|left| {
@@ -80,13 +80,13 @@ impl<'a> Evaluator {
     fn visit_update_assignment(
         &'a self,
         expr: ast::Expression,
-        obj: Object,
+        obj: Lazy<Object>,
         env: Env,
     ) -> EvalResult<'a> {
 
         match expr {
             ast::Expression::Identifier(exp) => {
-                env.as_ref().borrow_mut().update(exp.value, obj).map(|_| {
+                env.as_ref().borrow_mut().update(exp.value, obj.unwrap_value()).map(|_| {
                     self.runtime.NULL().into()
                 })
             }
@@ -94,8 +94,8 @@ impl<'a> Evaluator {
         }
     }
 
-    fn eval_bang_prefix_op_exp(&'a self, obj: &Object) -> EvalResult<'a> {
-        let result = match *obj {
+    fn eval_bang_prefix_op_exp(&'a self, obj: Lazy<Object>) -> EvalResult<'a> {
+        let result = match *obj.unwrap_ref() {
             Object::Boolean(true) => self.runtime.bool(false),
             Object::Boolean(false) => self.runtime.bool(true),
             Object::Null => self.runtime.bool(true),
@@ -142,9 +142,9 @@ impl<'a> Evaluator {
         Ok(result)
     }
 
-    fn eval_minus_prefix_op_exp(&'a self, obj: &Object) -> EvalResult<'a> {
-        let result = match *obj {
-            Object::Integer(int) => Object::Integer(-int),
+    fn eval_minus_prefix_op_exp(&'a self, obj: Lazy<Object>) -> EvalResult<'a> {
+        let result = match obj.as_ref() {
+            &Object::Integer(int) => Object::Integer(-int),
             ref t => return Err(format!("unknown operator: -{}", t)),
         };
         Ok(result.into())
@@ -259,11 +259,11 @@ impl<'a> Evaluator {
         }
     }
 
-    fn visit_prefix_expression(&'a self, op: &str, right: &Object) -> EvalResult<'a> {
+    fn visit_prefix_expression(&'a self, op: &str, right: Lazy<Object>) -> EvalResult<'a> {
         match op {
             "!" => self.eval_bang_prefix_op_exp(right),
             "-" => self.eval_minus_prefix_op_exp(right),
-            _ => return Err(format!("unknown operator: {}{}", op, right)),
+            _ => return Err(format!("unknown operator: {}{:?}", op, right)),
         }
     }
 

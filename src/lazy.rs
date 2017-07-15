@@ -22,6 +22,13 @@ where
         }
     }
 
+    pub fn as_ref(&self) -> &T {
+        match self {
+            &Lazy::Val(ref v) => v,
+            &Lazy::Ref(r) => r,
+        }
+    }
+
     pub fn unwrap_ref(self) -> &'a T {
         match self {
             Lazy::Ref(r) => r,
