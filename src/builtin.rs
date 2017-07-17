@@ -1,6 +1,5 @@
 use object;
 use object::{Object};
-use lazy;
 use token;
 use environment;
 use runtime;
@@ -19,34 +18,30 @@ pub enum Builtin {
     Rest,
     Push,
     Eval,
-    Stats,
-    While,
     Yield,
 }
 
 impl Builtin {
     fn call<'a>(
         &self,
-        args: &Vec<Object>,
+        args: Vec<Object>,
         env: Rc<RefCell<environment::Environment>>,
         evaluator: &'a evaluator::Evaluator,
     ) -> EvalResult<'a> {
         match self {
-            &Builtin::Len => check_arity_1(args).and_then(|arg1| len(arg1)),
-            &Builtin::Print => check_arity_1(args).and_then(|arg1| print(arg1, &evaluator.runtime)),
-            &Builtin::First => check_arity_1(args).and_then(|arg1| first(arg1)),
-            &Builtin::Last => check_arity_1(args).and_then(|arg1| last(arg1)),
-            &Builtin::Rest => check_arity_1(args).and_then(|arg1| rest(arg1)),
-            &Builtin::Eval => check_arity_1(args).and_then(|arg1| eval(arg1, env, evaluator)),
-            &Builtin::Push => check_arity_2(args).and_then(|(arg1, arg2)| push(arg1, arg2)),
-            &Builtin::Stats => check_arity_0(args).and_then(|_| stats(env, &evaluator.runtime)),
-            &Builtin::While => check_arity_0(args).and_then(|_| stats(env, &evaluator.runtime)),
+            &Builtin::Len => check_arity_1(&args).and_then(|arg1| len(arg1)),
+            &Builtin::Print => check_arity_1(&args).and_then(|arg1| print(arg1, &evaluator.runtime)),
+            &Builtin::First => check_arity_1(&args).and_then(|arg1| first(arg1)),
+            &Builtin::Last => check_arity_1(&args).and_then(|arg1| last(arg1)),
+            &Builtin::Rest => check_arity_1(&args).and_then(|arg1| rest(arg1)),
+            &Builtin::Eval => check_arity_1(&args).and_then(|arg1| eval(arg1, env, evaluator)),
+            &Builtin::Push => check_arity_2(&args).and_then(|(arg1, arg2)| push(arg1, arg2)),
             &Builtin::Yield => _yield(args, env, evaluator),
         }
     }
 }
 
-pub static BUILTINS: [(&'static str, Builtin); 10] = [
+pub static BUILTINS: [(&'static str, Builtin); 8] = [
     ("len", Builtin::Len),
     ("print", Builtin::Print),
     ("first", Builtin::First),
@@ -54,17 +49,8 @@ pub static BUILTINS: [(&'static str, Builtin); 10] = [
     ("rest", Builtin::Rest),
     ("push", Builtin::Push),
     ("eval", Builtin::Eval),
-    ("stats", Builtin::Stats),
-    ("while", Builtin::While),
     ("yield", Builtin::Yield),
 ];
-
-fn check_arity_0(args: &Vec<Object>) -> Result<(), String> {
-    if args.len() == 0 {
-        return Ok(());
-    }
-    Err(format!("expected 0 arguments, got {}", args.len()))
-}
 
 fn check_arity_1(args: &Vec<Object>) -> Result<(&Object), String> {
     if args.len() == 1 {
@@ -109,7 +95,7 @@ pub fn call<'a>(
     tok: &token::Token,
     env: Rc<RefCell<environment::Environment>>,
     evaluator: &'a evaluator::Evaluator,
-    args: &Vec<object::Object>,
+    args: Vec<object::Object>,
 ) -> EvalResult<'a> {
     from_token(tok).and_then(|builtin| builtin.call(args, env, evaluator))
 }
@@ -171,15 +157,6 @@ fn eval<'a>(arg: &Object, env: Rc<RefCell<environment::Environment>>, evaluator:
     }
 }
 
-fn stats<'a>(
-    env: Rc<RefCell<environment::Environment>>,
-    runtime: &'a runtime::Runtime,
-) -> EvalResult<'a> {
-    runtime.stats();
-    env.borrow().stats(0);
-    Ok(runtime.NULL().into())
-}
-
 fn rest<'a>(arg: &Object) -> EvalResult<'a> {
     match arg {
         &Object::ArrayLiteral(ref array) => {
@@ -193,19 +170,18 @@ fn rest<'a>(arg: &Object) -> EvalResult<'a> {
 }
 
 fn _yield<'a>(
-    args: &Vec<Object>,
+    args: Vec<Object>,
     env: Rc<RefCell<environment::Environment>>,
     evaluator: &'a evaluator::Evaluator,
 ) -> EvalResult<'a> {
-    let borrow = env.borrow();
-    let block = borrow.block();
-    match block.as_ref().unwrap() {
-        &Object::BlockArgument(ref params, ref stmt, ref block_env) => {
+    let mut borrow = env.borrow_mut();
+    let block = borrow.block().take();
+    match block.unwrap() {
+        Object::BlockArgument(params, stmt, block_env) => {
             let extended_env =
-                environment::extend_function_env(&params, block_env.clone(), args, None)?;
-            evaluator.visit_statement(*stmt.clone(), Rc::new(RefCell::new(extended_env)))
+                environment::extend_function_env(params, block_env, args, None)?;
+            evaluator.visit_statement(*stmt, Rc::new(RefCell::new(extended_env)))
         }
         ref x => Err(format!("Expected block argument, got: {}", x)),
     }
-
 }

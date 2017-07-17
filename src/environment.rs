@@ -12,9 +12,9 @@ pub struct Environment {
 }
 
 pub fn extend_function_env(
-    parameters: &Vec<ast::IdentifierExpression>,
+    parameters: Vec<ast::IdentifierExpression>,
     env: Rc<RefCell<Environment>>,
-    args: &Vec<Object>,
+    args: Vec<Object>,
     block: Option<Object>
 ) -> Result<Environment, String> {
     let mut extended = extend(env, block);
@@ -73,25 +73,8 @@ impl Environment {
 
 
 
-    pub fn block(&self) -> &Option<Object> {
-        &self.block
-    }
-
-    pub fn stats(&self, indent: i32) {
-        let mut indentation: String = String::from("");
-        let mut i = 0;
-        while i < indent {
-            indentation.push(' ');
-            i += 1;
-        }
-
-        for (key, value) in self.env.iter() {
-            //println!("{}{}: {}", indentation, key, Rc::strong_count(&value));
-        }
-
-        self.outer.as_ref().map(
-            |outer| outer.borrow().stats(indent + 2),
-        );
+    pub fn block(&mut self) -> &mut Option<Object> {
+        &mut self.block
     }
 }
 

@@ -1,4 +1,3 @@
-use std::rc::Rc;
 use object::Object;
 
 pub struct Runtime {
@@ -30,8 +29,5 @@ impl Runtime {
 
     pub fn bool(&self, b: bool) -> &Object {
         if b { self.TRUE() } else { self.FALSE() }
-    }
-
-    pub fn stats(&self) {
     }
 }

@@ -4,7 +4,6 @@ use std::cell::RefCell;
 use environment::Environment;
 use token;
 use ast;
-use lazy;
 use lazy::Lazy;
 
 #[derive(Debug, PartialEq, Clone)]

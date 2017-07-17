@@ -30,7 +30,7 @@ pub fn eval(s: &str, env: Rc<RefCell<environment::Environment>>) -> Result<Objec
 
     match parse(s) {
         Ok(p) => {
-            evaluator::eval(p, env.clone(), &evaluator).map(|o| o.unwrap_value())
+            evaluator::eval(p, env.clone(), &evaluator).map(|o| o.unwrap())
         }
         Err(errs) => Err(format!("{:?}", errs)),
     }

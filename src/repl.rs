@@ -23,7 +23,7 @@ pub fn run() {
         match parser::parse(input.as_str()) {
             Ok(node) => match evaluator::eval(node, env.clone(), &evaluator) {
                 Ok(result) => {
-                    match result.unwrap_ref() {
+                    match result.as_ref() {
                         &object::Object::Null => (),
                         r => println ! ("{:?}", r),
                     }
