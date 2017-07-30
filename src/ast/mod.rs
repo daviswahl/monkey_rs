@@ -424,7 +424,7 @@ impl HasToken for BlockArgument {
 
 impl fmt::Display for BlockArgument {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-       let params: String = self.parameters
+        let params: String = self.parameters
             .iter()
             .map(|p| format!("{}", p))
             .collect::<Vec<String>>()

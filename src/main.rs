@@ -29,7 +29,7 @@ fn eval_file(s: String) {
                 }
             }) {
                 Ok(_) => (),
-                Err(e) => println!("{}",e)
+                Err(e) => println!("{}", e),
             }
         }
         Err(e) => println!("Error: {}", e),
